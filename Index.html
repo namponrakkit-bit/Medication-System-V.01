@@ -90,10 +90,10 @@
           <span><i style="background:var(--had)"></i> HAD</span>
         </div>
         <div class="action-row" id="medActionRow">
-          <button class="btn btn-primary btn-sm admin-only" id="menuAddMed">➕ เพิ่มยาใหม่</button>
-          <button class="btn btn-outline btn-sm admin-only" id="menuManageOptions">🗂 หมวดหมู่ / ที่จัดเก็บ</button>
-          <button class="btn btn-outline btn-sm admin-only" id="menuExportCsv">📥 Export CSV</button>
-          <button class="btn btn-outline btn-sm admin-only" id="menuExportSheet">📊 Export Sheet</button>
+          <button class="btn btn-primary btn-sm" id="menuAddMed">➕ เพิ่มยาใหม่</button>
+          <button class="btn btn-outline btn-sm" id="menuManageOptions">🗂 หมวดหมู่ / ที่จัดเก็บ</button>
+          <button class="btn btn-outline btn-sm" id="menuExportCsv">📥 Export CSV</button>
+          <button class="btn btn-outline btn-sm" id="menuExportSheet">📊 Export Sheet</button>
           <button class="btn btn-outline btn-sm" id="menuManageUsers">👥 ผู้ใช้ / สิทธิ์</button>
           <button class="btn btn-outline btn-sm admin-only" id="menuAdminSettings">⚙️ ตั้งค่า</button>
         </div>
@@ -120,7 +120,7 @@
         <div class="search-box">
           <input id="boxSearchInput" type="text" placeholder="ค้นหาหมายเลขกล่อง หรือแผนก..." autocomplete="off">
           <button id="btnPrintAllQr" class="btn btn-outline" type="button">📷 พิมพ์ QR ทั้งหมด</button>
-          <button id="btnCreateBox" class="btn btn-primary admin-only">➕ สร้างกล่องยา</button>
+          <button id="btnCreateBox" class="btn btn-primary">➕ สร้างกล่องยา</button>
         </div>
         <!-- แท็บสถานะกล่องยา -->
         <div class="tabs-container" id="boxStatusTabs">
@@ -321,14 +321,14 @@
           <div class="form-grid" style="margin-bottom: 12px;">
             <div class="form-field"><label>ที่อยู่ปัจจุบัน (เปลี่ยนแผนก)</label><select id="fBoxDetailDept"><option value="">-- เลือก --</option></select></div>
             <div class="form-field" style="display:flex; align-items:flex-end; gap:8px;">
-              <button class="btn btn-primary btn-sm admin-only" id="btnChangeDept">ย้ายแผนก</button>
+              <button class="btn btn-primary btn-sm" id="btnChangeDept">ย้ายแผนก</button>
               <button class="btn btn-outline btn-sm" id="btnPrintLabel">📷 พิมพ์ QR ติดกล่อง</button>
             </div>
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <h3 style="font-size:0.9rem; color:var(--mac-text); margin:0;">รายการยา (จะหมดอายุวันที่: <span id="boxExpDate" style="color:var(--mac-red);">-</span>)</h3>
-            <button class="btn btn-primary btn-sm admin-only" id="btnAddBoxItem">➕ เพิ่มยา</button>
+            <button class="btn btn-primary btn-sm" id="btnAddBoxItem">➕ เพิ่มยา</button>
           </div>
           <div id="boxItemsList" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
@@ -339,7 +339,7 @@
         </div>
 
         <div class="modal-actions" style="margin-top: 24px;">
-          <button class="btn btn-danger admin-only" id="btnDeleteBox">🗑️ ลบกล่องยา</button>
+          <button class="btn btn-danger" id="btnDeleteBox">🗑️ ลบกล่องยา</button>
           <button class="btn btn-outline" id="btnBoxDetailClose">ปิด</button>
         </div>
       </div>

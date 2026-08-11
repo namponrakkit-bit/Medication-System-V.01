@@ -166,7 +166,7 @@
       const label = expiryLabel(info) + (item['วันหมดอายุ'] ? ' (' + escapeHtml(item['วันหมดอายุ']) + ')' : '');
       const had = isHighAlertDrug(item);
       const code = escapeHtml(item['รหัสยา']);
-      const actions = `<div class="med-actions"><button class="btn btn-outline btn-sm btn-edit admin-only" data-code="${code}">✏️</button><button class="btn btn-danger btn-sm btn-delete admin-only" data-code="${code}">🗑️</button></div>`;
+      const actions = `<div class="med-actions"><button class="btn btn-outline btn-sm btn-edit" data-code="${code}">✏️</button><button class="btn btn-danger btn-sm btn-delete" data-code="${code}">🗑️</button></div>`;
       return `<div class="med-card ${cls}"><div class="med-main"><div class="med-name${had ? ' had-name' : ''}">${escapeHtml(item['ชื่อยา'] || '-')}</div><div class="med-sub">${escapeHtml(item['ชื่อสามัญ'] || '')}${item['รหัสยา'] ? ' · รหัส ' + code : ''}</div><div class="med-tags">${had ? `<span class="tag tag-had">⚠️ HAD</span>` : ''}${item['หมวดหมู่'] ? `<span class="tag">${escapeHtml(item['หมวดหมู่'])}</span>` : ''}${item['ที่จัดเก็บ'] ? `<span class="tag">📍 ${escapeHtml(item['ที่จัดเก็บ'])}</span>` : ''}${item['Lot No.'] ? `<span class="tag">Lot ${escapeHtml(item['Lot No.'])}</span>` : ''}</div></div><div class="med-side"><div><div class="qty">${escapeHtml(String(item['จำนวนคงเหลือ'] ?? '-'))} ${escapeHtml(item['หน่วย'] || '')}</div><div class="exp-pill">${label}</div></div>${actions}</div></div>`;
     }
 
@@ -177,7 +177,7 @@
       const had = isHighAlertDrug(item);
       const code = escapeHtml(item['รหัสยา']);
       const expDate = item['วันหมดอายุ'] ? escapeHtml(item['วันหมดอายุ']) : '-';
-      const actions = `<div class="mr-actions"><button class="btn btn-outline btn-sm btn-edit admin-only" data-code="${code}">✏️</button><button class="btn btn-danger btn-sm btn-delete admin-only" data-code="${code}">🗑️</button></div>`;
+      const actions = `<div class="mr-actions"><button class="btn btn-outline btn-sm btn-edit" data-code="${code}">✏️</button><button class="btn btn-danger btn-sm btn-delete" data-code="${code}">🗑️</button></div>`;
       return `<div class="med-row ${cls}">`
         + `<div class="mr-name${had ? ' had-name' : ''}">${had ? '⚠️ ' : ''}${escapeHtml(item['ชื่อยา'] || '-')}${item['ชื่อสามัญ'] ? ` <span class="mr-sub">${escapeHtml(item['ชื่อสามัญ'])}</span>` : ''}</div>`
         + `<div class="mr-cat">${escapeHtml(item['หมวดหมู่'] || '-')}</div>`
@@ -375,7 +375,7 @@
 
     /* ---------------------- Modal: จัดการหมวดหมู่ / ที่จัดเก็บ ---------------------- */
     const optionsModalOverlay = document.getElementById('optionsModalOverlay');
-    function renderOptionsLists(){ const catList = document.getElementById('categoryList'); const locList = document.getElementById('locationList'); catList.innerHTML = options.categories.length ? options.categories.map(c => `<li><span>${escapeHtml(c)}</span><button title="ลบ" class="btn-delete-option admin-only" data-type="category" data-value="${escapeHtml(c)}">✕</button></li>`).join('') : `<div class="options-empty">ยังไม่มีหมวดหมู่</div>`; locList.innerHTML = options.locations.length ? options.locations.map(l => `<li><span>${escapeHtml(l)}</span><button title="ลบ" class="btn-delete-option admin-only" data-type="location" data-value="${escapeHtml(l)}">✕</button></li>`).join('') : `<div class="options-empty">ยังไม่มีที่จัดเก็บ</div>`; }
+    function renderOptionsLists(){ const catList = document.getElementById('categoryList'); const locList = document.getElementById('locationList'); catList.innerHTML = options.categories.length ? options.categories.map(c => `<li><span>${escapeHtml(c)}</span><button title="ลบ" class="btn-delete-option" data-type="category" data-value="${escapeHtml(c)}">✕</button></li>`).join('') : `<div class="options-empty">ยังไม่มีหมวดหมู่</div>`; locList.innerHTML = options.locations.length ? options.locations.map(l => `<li><span>${escapeHtml(l)}</span><button title="ลบ" class="btn-delete-option" data-type="location" data-value="${escapeHtml(l)}">✕</button></li>`).join('') : `<div class="options-empty">ยังไม่มีที่จัดเก็บ</div>`; }
     function openOptionsModal() { renderOptionsLists(); optionsModalOverlay.classList.add('open'); }
     document.getElementById('btnOptionsClose').addEventListener('click', () => optionsModalOverlay.classList.remove('open'));
     optionsModalOverlay.addEventListener('click', e => { if(e.target === optionsModalOverlay) optionsModalOverlay.classList.remove('open'); });
@@ -737,8 +737,8 @@
       }
       listEl.innerHTML = items.map((item, idx) => {
         const actions = `<div class="med-actions">
-                <button class="btn btn-outline btn-sm btn-edit-item admin-only" data-idx="${escapeHtml(String(idx + 2))}">✏️</button>
-                <button class="btn btn-danger btn-sm btn-delete-item admin-only" data-idx="${escapeHtml(String(idx + 2))}">🗑️</button>
+                <button class="btn btn-outline btn-sm btn-edit-item" data-idx="${escapeHtml(String(idx + 2))}">✏️</button>
+                <button class="btn btn-danger btn-sm btn-delete-item" data-idx="${escapeHtml(String(idx + 2))}">🗑️</button>
               </div>`;
         return `
           <div class="med-card exp-green" style="border-top: 3px solid var(--mac-border);">

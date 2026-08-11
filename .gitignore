@@ -1,0 +1,7 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+
+# clasp local credentials / project link (never commit these)
+.clasprc.json
+.clasp.json

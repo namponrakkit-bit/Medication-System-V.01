@@ -1,0 +1,19 @@
+{
+  "name": "medication-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hospital pharmacy medication + emergency-box (RxEbox) management — Google Apps Script web app. This package.json only provides local development tooling (clasp + a local Apps Script emulation harness); it is not deployed.",
+  "scripts": {
+    "validate": "node tools/validate.js",
+    "lint": "node tools/validate.js",
+    "demo": "node tools/demo.js",
+    "test": "node tools/demo.js",
+    "serve": "node tools/serve.js",
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "open": "clasp open"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}

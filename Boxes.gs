@@ -17,7 +17,7 @@ function createBox(payload, actorName, actorPosition) {
   const sheet = getBoxSheet_();
   const now = new Date();
   const boxId = 'BOX-' + now.getTime();
-  const qrToken = Math.random().toString(36).substring(2, 10);
+  const qrToken = generateQrToken_();
   const status = payload.department === 'ห้องยา' ? 'พร้อมจ่าย' : 'อยู่ที่แผนก';
   const actor = (actorName && actorPosition) ? `${actorName} (${actorPosition})` : 'Unknown';
 
@@ -28,7 +28,142 @@ function createBox(payload, actorName, actorPosition) {
   ];
   sheet.appendRow(newRow);
   logBoxHistory_(boxId, payload.boxNo, 'สร้างกล่อง', payload.department, actor, 'สร้างกล่องยาใหม่');
-  return { success: true, boxId: boxId };
+  return { success: true, boxId: boxId, qrToken: qrToken };
+}
+
+/**
+ * สร้างข้อมูลฉลาก QR สำหรับพิมพ์ติดกล่อง (กล่องเดียว)
+ */
+function getBoxLabelData(boxId) {
+  const box = findBoxRowById_(boxId);
+  if (!box) throw new Error('ไม่พบกล่องยา');
+  const token = ensureBoxQrToken_(box.rowIndex, box.data);
+  return buildLabelPayload_(Object.assign({}, box.data, { qrToken: token }));
+}
+
+/**
+ * สร้างข้อมูลฉลาก QR ทุกกล่อง สำหรับพิมพ์ทีละแผ่น / หลายดวง
+ */
+function getAllBoxLabelData() {
+  const sheet = getBoxSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return { labels: [], webAppUrl: getWebAppUrl_() };
+  const headers = values[0];
+  const idIdx = headers.indexOf('boxId');
+  const tokenIdx = headers.indexOf('qrToken');
+  if (tokenIdx < 0) throw new Error('ไม่พบคอลัมน์ qrToken');
+  const labels = [];
+
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    if (!row[idIdx]) continue;
+    let token = (row[tokenIdx] || '').toString().trim();
+    if (!token) {
+      token = generateQrToken_();
+      sheet.getRange(i + 1, tokenIdx + 1).setValue(token);
+      row[tokenIdx] = token;
+    }
+    labels.push(buildLabelPayload_(rowToObject_(headers, row)));
+  }
+  return { labels: labels, webAppUrl: getWebAppUrl_() };
+}
+
+/**
+ * ค้นหากล่องจาก qrToken (ใช้เมื่อสแกน QR)
+ */
+function findBoxByQrToken(qrToken) {
+  qrToken = (qrToken || '').toString().trim();
+  if (!qrToken) throw new Error('ไม่พบรหัส QR');
+
+  // รองรับทั้ง token ล้วน และสตริง RXEBOX:token
+  const m = qrToken.match(/^RXEBOX:(.+)$/i);
+  if (m) qrToken = m[1].trim();
+
+  const sheet = getBoxSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) throw new Error('ไม่พบกล่องยาจาก QR นี้');
+  const headers = values.shift();
+  const tokenIdx = headers.indexOf('qrToken');
+  const idIdx = headers.indexOf('boxId');
+  if (tokenIdx < 0) throw new Error('ไม่พบคอลัมน์ qrToken');
+
+  for (let i = 0; i < values.length; i++) {
+    if ((values[i][tokenIdx] || '').toString().trim() === qrToken) {
+      return {
+        success: true,
+        boxId: values[i][idIdx].toString(),
+        box: rowToObject_(headers, values[i])
+      };
+    }
+  }
+  throw new Error('ไม่พบกล่องยาจาก QR นี้');
+}
+
+function generateQrToken_() {
+  // UUID แบบ compact — อ่านง่ายบนฉลาก และยากต่อการเดา
+  return Utilities.getUuid().replace(/-/g, '').substring(0, 16);
+}
+
+function getWebAppUrl_() {
+  const props = PropertiesService.getScriptProperties();
+  const saved = (props.getProperty('WEB_APP_URL') || '').trim();
+  if (saved) return saved.replace(/\/$/, '');
+  try {
+    const url = ScriptApp.getService().getUrl();
+    if (url) return url.replace(/\/$/, '');
+  } catch (e) { /* ignore */ }
+  return '';
+}
+
+function buildScanUrl_(qrToken) {
+  const base = getWebAppUrl_();
+  if (!base) return 'RXEBOX:' + qrToken;
+  const sep = base.indexOf('?') >= 0 ? '&' : '?';
+  return base + sep + 'qr=' + encodeURIComponent(qrToken);
+}
+
+function buildLabelPayload_(box) {
+  const token = (box.qrToken || '').toString();
+  const scanUrl = buildScanUrl_(token);
+  return {
+    boxId: box.boxId,
+    boxNo: box.boxNo,
+    department: box.department || '',
+    homeDepartment: box.homeDepartment || '',
+    status: box.status || '',
+    expiryDate: box.expiryDate || '',
+    qrToken: token,
+    scanUrl: scanUrl,
+    qrDataUrl: '',
+    webAppUrl: getWebAppUrl_()
+  };
+}
+
+function findBoxRowById_(boxId) {
+  boxId = (boxId || '').toString();
+  const sheet = getBoxSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return null;
+  const headers = values[0];
+  const idIdx = headers.indexOf('boxId');
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][idIdx].toString() === boxId) {
+      return { rowIndex: i + 1, data: rowToObject_(headers, values[i]), headers: headers };
+    }
+  }
+  return null;
+}
+
+function ensureBoxQrToken_(rowIndex, boxData) {
+  let token = (boxData.qrToken || '').toString().trim();
+  if (token) return token;
+  token = generateQrToken_();
+  const sheet = getBoxSheet_();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const tokenIdx = headers.indexOf('qrToken');
+  if (tokenIdx < 0) throw new Error('ไม่พบคอลัมน์ qrToken');
+  sheet.getRange(rowIndex, tokenIdx + 1).setValue(token);
+  return token;
 }
 
 function updateBoxDetails(boxId, payload, actor) {
@@ -104,7 +239,15 @@ function getAdminBoxDetails(boxId) {
   const itemsSheet = getBoxItemsSheet_();
   const itemValues = itemsSheet.getDataRange().getValues();
   const itemHeaders = itemValues.shift();
-  const items = itemValues.filter(row => row[itemHeaders.indexOf('boxId')].toString() === boxId.toString()).map(row => rowToObject_(itemHeaders, row));
+  const boxIdIdx = itemHeaders.indexOf('boxId');
+  const items = [];
+  for (let i = 0; i < itemValues.length; i++) {
+    if (itemValues[i][boxIdIdx].toString() === boxId.toString()) {
+      const item = rowToObject_(itemHeaders, itemValues[i]);
+      item.rowIndex = i + 2; // แถวจริงในชีต (หลัง header)
+      items.push(item);
+    }
+  }
 
   const historySheet = getBoxHistorySheet_();
   const histValues = historySheet.getDataRange().getValues();

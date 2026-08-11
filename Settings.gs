@@ -12,18 +12,24 @@ function getAdminSettings() {
     lineToken: props.getProperty('LINE_CHANNEL_ACCESS_TOKEN') || '',
     lineTargetId: props.getProperty('LINE_TARGET_ID') || '',
     redMonths: parseInt(props.getProperty('RED_MONTHS'), 10) || 4,
-    yellowMonths: parseInt(props.getProperty('YELLOW_MONTHS'), 10) || 8
+    yellowMonths: parseInt(props.getProperty('YELLOW_MONTHS'), 10) || 8,
+    webAppUrl: props.getProperty('WEB_APP_URL') || ''
   };
 }
 
 // เวอร์ชันสำหรับ frontend — ส่งแค่ hasLineToken (boolean) แทน token จริง
 function getClientSettings_() {
   const s = getAdminSettings();
+  let webAppUrl = (s.webAppUrl || '').trim();
+  if (!webAppUrl) {
+    try { webAppUrl = ScriptApp.getService().getUrl() || ''; } catch (e) { webAppUrl = ''; }
+  }
   return {
     lineTargetId: s.lineTargetId,
     redMonths: s.redMonths,
     yellowMonths: s.yellowMonths,
-    hasLineToken: !!s.lineToken
+    hasLineToken: !!s.lineToken,
+    webAppUrl: webAppUrl
   };
 }
 
@@ -38,6 +44,9 @@ function saveAdminSettings(data) {
     if (token) props.setProperty('LINE_CHANNEL_ACCESS_TOKEN', token);
   }
   if (data.lineTargetId !== undefined) props.setProperty('LINE_TARGET_ID', data.lineTargetId);
+  if (data.webAppUrl !== undefined) {
+    props.setProperty('WEB_APP_URL', (data.webAppUrl || '').toString().trim());
+  }
 
   const red = parseInt(data.redMonths, 10);
   const yellow = parseInt(data.yellowMonths, 10);

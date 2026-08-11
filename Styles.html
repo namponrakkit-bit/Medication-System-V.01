@@ -195,11 +195,104 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
+    /* QR Label (ฉลากติดกล่อง) */
+    .qr-label-sheet {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+      max-height: 60vh;
+      overflow: auto;
+      padding: 4px;
+    }
+    .qr-label {
+      background: #fff;
+      border: 1.5px dashed rgba(0,0,0,0.25);
+      border-radius: 10px;
+      padding: 14px 12px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .qr-label-brand {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--mac-blue);
+    }
+    .qr-label-boxno {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--mac-text);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .qr-label img {
+      width: 160px;
+      height: 160px;
+      image-rendering: pixelated;
+      background: #fff;
+    }
+    .qr-label-meta {
+      font-size: 0.78rem;
+      color: var(--mac-muted);
+      line-height: 1.35;
+    }
+    .qr-label-token {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.7rem;
+      color: #555;
+      letter-spacing: 0.04em;
+    }
+
     @media (max-width:480px){
       header.topbar h1{font-size:1rem;}
       header.topbar{flex-wrap:wrap;}
       .user-chip{margin-left:0; order:3; width:100%; text-align:center;}
       .search-box{flex-direction:column;}
       .search-box button{padding:12px;}
+    }
+
+    @media print {
+      body * { visibility: hidden !important; }
+      #qrLabelModalOverlay,
+      #qrLabelModalOverlay * { visibility: visible !important; }
+      #qrLabelModalOverlay {
+        position: static !important;
+        display: block !important;
+        background: #fff !important;
+        inset: auto !important;
+        padding: 0 !important;
+      }
+      #qrLabelModalOverlay .modal-box {
+        box-shadow: none !important;
+        border: none !important;
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+      }
+      #qrLabelModalOverlay .modal-content-area { padding: 0 !important; }
+      .no-print { display: none !important; }
+      .qr-label-sheet {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8mm;
+        max-height: none !important;
+        overflow: visible !important;
+        padding: 0 !important;
+      }
+      .qr-label {
+        border: 1px solid #222;
+        border-radius: 0;
+        min-height: 85mm;
+        justify-content: center;
+      }
+      .qr-label img { width: 42mm; height: 42mm; }
     }
   </style>

@@ -250,6 +250,7 @@
           populateFilterOptions();
           populateFormOptions();
           applyFilters();
+          handlePendingQrDeepLink();
         }).withFailureHandler(err => { resultsEl.innerHTML = `<div class="empty-state">เกิดข้อผิดพลาด: ${escapeHtml(err.message || err)}</div>`; showToast('โหลดข้อมูลไม่สำเร็จ: ' + (err.message || err), 'error'); }).getInitialData();
     }
 
@@ -421,6 +422,7 @@
       document.getElementById('setLineTarget').value = sanitizeInput(appSettings.lineTargetId || '');
       document.getElementById('setRedMonths').value = appSettings.redMonths || 4;
       document.getElementById('setYellowMonths').value = appSettings.yellowMonths || 8;
+      document.getElementById('setWebAppUrl').value = sanitizeInput(appSettings.webAppUrl || '');
       document.getElementById('setAdminEmails').value = sanitizeInput(appSettings.adminEmails || '');
       const warn = document.getElementById('adminOpenWarning');
       if (!appSettings.adminEmails) {
@@ -439,6 +441,7 @@
       const yellowMonths = sanitizeInput(document.getElementById('setYellowMonths').value);
       const lineTarget = sanitizeInput(document.getElementById('setLineTarget').value);
       const lineToken = document.getElementById('setLineToken').value.trim();
+      const webAppUrl = sanitizeInput(document.getElementById('setWebAppUrl').value, 500);
       const adminEmails = sanitizeInput(document.getElementById('setAdminEmails').value);
 
       if (!validateNumber(redMonths, 1, 12)) {
@@ -472,6 +475,7 @@
         lineTargetId: lineTarget,
         redMonths: parseInt(redMonths) || 4,
         yellowMonths: parseInt(yellowMonths) || 8,
+        webAppUrl: webAppUrl,
         adminEmails: adminEmails
       };
       // ส่ง lineToken เฉพาะเมื่อผู้ใช้กรอกค่าใหม่เท่านั้น (เว้นว่าง = คงค่าเดิม)
@@ -893,8 +897,107 @@
     });
 
     document.getElementById('btnPrintLabel').addEventListener('click', () => {
-      showToast('ฟังก์ชันพิมพ์ฉลากกำลังพัฒนา', 'error');
+      if (!currentBoxId) {
+        showToast('ไม่พบกล่องยาที่เลือก', 'error');
+        return;
+      }
+      const btn = document.getElementById('btnPrintLabel');
+      setButtonLoading(btn, 'กำลังสร้าง QR...');
+      google.script.run.withSuccessHandler(label => {
+        resetButtonLoading(btn);
+        openQrLabelModal([label], 'ฉลาก QR — ' + (label.boxNo || ''));
+      }).withFailureHandler(err => {
+        resetButtonLoading(btn);
+        showToast('สร้างฉลากไม่สำเร็จ: ' + (err.message || err), 'error');
+      }).getBoxLabelData(currentBoxId);
     });
+
+    document.getElementById('btnPrintAllQr').addEventListener('click', () => {
+      const btn = document.getElementById('btnPrintAllQr');
+      setButtonLoading(btn, 'กำลังสร้าง QR...');
+      google.script.run.withSuccessHandler(res => {
+        resetButtonLoading(btn);
+        const labels = (res && res.labels) || [];
+        if (!labels.length) {
+          showToast('ยังไม่มีกล่องยาให้พิมพ์ QR', 'error');
+          return;
+        }
+        openQrLabelModal(labels, 'ฉลาก QR ทั้งหมด (' + labels.length + ' กล่อง)');
+      }).withFailureHandler(err => {
+        resetButtonLoading(btn);
+        showToast('สร้างฉลากไม่สำเร็จ: ' + (err.message || err), 'error');
+      }).getAllBoxLabelData();
+    });
+
+    /* ---------------------- QR Label Modal ---------------------- */
+    const qrLabelModalOverlay = document.getElementById('qrLabelModalOverlay');
+    function qrImgSrc(label) {
+      if (label.qrDataUrl) return label.qrDataUrl;
+      const data = label.scanUrl || ('RXEBOX:' + (label.qrToken || ''));
+      return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&ecc=M&margin=8&data='
+        + encodeURIComponent(data);
+    }
+    function qrLabelCardHtml(label) {
+      return `
+        <div class="qr-label">
+          <div class="qr-label-brand">RxEbox · กล่องยาฉุกเฉิน</div>
+          <div class="qr-label-boxno">${escapeHtml(label.boxNo || '-')}</div>
+          <img src="${escapeHtml(qrImgSrc(label))}" alt="QR ${escapeHtml(label.boxNo || '')}" width="160" height="160">
+          <div class="qr-label-meta">
+            แผนก: ${escapeHtml(label.department || '-')}
+            ${label.expiryDate ? '<br>หมดอายุใกล้สุด: ' + escapeHtml(label.expiryDate) : ''}
+          </div>
+          <div class="qr-label-token">${escapeHtml(label.qrToken || '')}</div>
+        </div>
+      `;
+    }
+    function openQrLabelModal(labels, title) {
+      document.getElementById('qrLabelTitle').textContent = title || 'ฉลาก QR ติดกล่อง';
+      const warn = document.getElementById('qrLabelWarning');
+      const missingUrl = labels.some(l => !l.webAppUrl);
+      if (missingUrl) {
+        warn.textContent = 'ยังไม่ได้ตั้งค่า Web App URL — QR อาจสแกนแล้วเปิดแอปไม่ได้ ไปที่ ตั้งค่า แล้ววางลิงก์ Deploy';
+        warn.style.display = 'block';
+        warn.classList.add('show');
+      } else {
+        warn.style.display = 'none';
+        warn.classList.remove('show');
+      }
+      document.getElementById('qrLabelSheet').innerHTML = labels.map(qrLabelCardHtml).join('');
+      qrLabelModalOverlay.classList.add('open');
+    }
+    document.getElementById('btnQrLabelClose').addEventListener('click', () => qrLabelModalOverlay.classList.remove('open'));
+    document.getElementById('btnQrLabelPrint').addEventListener('click', () => {
+      window.print();
+    });
+    qrLabelModalOverlay.addEventListener('click', e => {
+      if (e.target === qrLabelModalOverlay) qrLabelModalOverlay.classList.remove('open');
+    });
+
+    /* ---------------------- QR Deep Link (สแกนติดกล่อง) ---------------------- */
+    const rxeInit = window.__RXEBOX_INIT__ || {};
+    let pendingQrToken = (rxeInit.qr || '').toString().trim();
+    let pendingInitialView = (rxeInit.view || '').toString().trim();
+
+    function handlePendingQrDeepLink() {
+      if (!pendingQrToken) {
+        if (pendingInitialView === 'box') switchView('box');
+        return;
+      }
+      const token = pendingQrToken;
+      pendingQrToken = '';
+      switchView('box');
+      google.script.run.withSuccessHandler(res => {
+        if (res && res.boxId) {
+          showToast('เปิดจาก QR: กล่อง ' + (res.box.boxNo || res.boxId), 'success');
+          openBoxDetailModal(res.boxId);
+        } else {
+          showToast('ไม่พบกล่องจาก QR นี้', 'error');
+        }
+      }).withFailureHandler(err => {
+        showToast('สแกน QR ไม่สำเร็จ: ' + (err.message || err), 'error');
+      }).findBoxByQrToken(token);
+    }
 
     /* ---------------------- Login Modal ---------------------- */
     function openLoginModal() {
@@ -931,7 +1034,11 @@
             populateFilterOptions();
             populateFormOptions();
             applyFilters();
-            switchView('med'); // ไปหน้า medicine
+            if (pendingQrToken || pendingInitialView === 'box') {
+              handlePendingQrDeepLink();
+            } else {
+              switchView('med');
+            }
           }).withFailureHandler(err => {
             resultsEl.innerHTML = `<div class="empty-state">เกิดข้อผิดพลาด: ${escapeHtml(err.message || err)}</div>`;
             showToast('โหลดข้อมูลไม่สำเร็จ: ' + (err.message || err), 'error');
@@ -944,5 +1051,7 @@
 
     /* ---------------------- เริ่มต้นโหลดข้อมูล ---------------------- */
     reloadAll();
-    switchView('med'); // โหลดหน้าคลังยาเป็นหน้าเริ่มต้น
+    if (!(window.__RXEBOX_INIT__ && window.__RXEBOX_INIT__.qr)) {
+      switchView(pendingInitialView === 'box' ? 'box' : 'med');
+    }
   </script>

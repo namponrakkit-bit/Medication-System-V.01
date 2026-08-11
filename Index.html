@@ -95,7 +95,7 @@
           <button class="btn btn-outline btn-sm" id="menuExportCsv">📥 Export CSV</button>
           <button class="btn btn-outline btn-sm" id="menuExportSheet">📊 Export Sheet</button>
           <button class="btn btn-outline btn-sm" id="menuManageUsers">👥 ผู้ใช้ / สิทธิ์</button>
-          <button class="btn btn-outline btn-sm" id="menuAdminSettings">⚙️ ตั้งค่า</button>
+          <button class="btn btn-outline btn-sm admin-only" id="menuAdminSettings">⚙️ ตั้งค่า</button>
         </div>
       </div>
 
@@ -233,14 +233,14 @@
         </div>
         <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* วางลิงก์หลัง Deploy เป็น Web App — QR ที่พิมพ์จะพาสแกนกลับมาเปิดกล่องนี้</p>
 
-        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">ระบบรักษาความปลอดภัย (RBAC)</h3>
+        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">รหัสผ่านแอดมิน</h3>
         <div class="form-grid">
           <div class="form-field full">
-            <label>อีเมลแอดมิน (คั่นด้วยจุลภาค)</label>
-            <input id="setAdminEmails" type="text" placeholder="เช่น admin@hosp.go.th, phar1@hosp.go.th">
+            <label>ตั้ง / เปลี่ยนรหัสผ่านแอดมิน <span id="adminPasswordStatus" style="font-weight:400; color:var(--mac-muted);"></span></label>
+            <input id="setAdminPassword" type="password" placeholder="กรอกรหัสใหม่..." autocomplete="new-password">
           </div>
         </div>
-        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* หากไม่กรอก ระบบจะอนุญาตให้ทุกคนที่เข้าถึงลิงก์แก้ไขข้อมูลได้ (ใช้เฉพาะตอน Deploy แบบ Anyone with Google account)</p>
+        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* เว้นว่าง = คงรหัสเดิม รหัสนี้ใช้กดปุ่ม "ผู้ใช้ / สิทธิ์" เพื่อเข้าโหมดแอดมิน (แก้ไข/ลบข้อมูล). หากยังไม่เคยตั้ง รหัสเริ่มต้นคือ 1234</p>
 
         <div class="form-error" id="adminFormError"></div>
         <div class="modal-actions">
@@ -251,35 +251,26 @@
     </div>
   </div>
 
-  <!-- ============ Modal: จัดการผู้ใช้ / สิทธิ์ (Admin) ============ -->
-  <div class="modal-overlay" id="usersModalOverlay">
-    <div class="modal-box" style="max-width: 620px;">
+  <!-- ============ Modal: เข้าสู่โหมดแอดมิน (ใส่รหัสผ่าน) ============ -->
+  <div class="modal-overlay" id="adminAuthModalOverlay">
+    <div class="modal-box" style="max-width: 460px;">
       <div class="modal-header-area">
         <div class="traffic-lights"><div class="light red"></div><div class="light yellow"></div><div class="light green"></div></div>
-        <h2>จัดการผู้ใช้ / สิทธิ์</h2>
+        <h2>เข้าสู่โหมดแอดมิน</h2>
         <div style="width: 52px;"></div>
       </div>
       <div class="modal-content-area">
-        <div class="modal-sub">กำหนดบทบาทให้ผู้ใช้ตามอีเมล Google — แอดมิน (ทุกอย่าง), เภสัชกร (เพิ่ม/แก้/ลบยา + กล่องยา), พยาบาล (ดูอย่างเดียว)</div>
-
-        <div class="options-add" style="margin-bottom:12px; flex-wrap:wrap;">
-          <input id="newUserEmail" type="email" placeholder="อีเมล Google" style="flex:2; min-width:180px;">
-          <input id="newUserName" type="text" placeholder="ชื่อ (ไม่บังคับ)" style="flex:1; min-width:120px;">
-          <select id="newUserRole" style="padding:8px 10px; border-radius:8px; border:1px solid var(--mac-border); background:#fff; font-family:inherit;">
-            <option value="pharmacist">เภสัชกร</option>
-            <option value="nurse">พยาบาล (ดูอย่างเดียว)</option>
-            <option value="admin">แอดมิน</option>
-          </select>
-          <button class="btn btn-primary btn-sm" id="btnAddUser">เพิ่ม / บันทึก</button>
+        <div class="modal-sub">ใส่รหัสผ่านแอดมินเพื่อปลดล็อกการเพิ่ม / แก้ไข / ลบข้อมูล และการตั้งค่าระบบ</div>
+        <div class="form-grid">
+          <div class="form-field full">
+            <label>รหัสผ่านแอดมิน</label>
+            <input id="fAdminPassword" type="password" placeholder="กรอกรหัสผ่าน..." autocomplete="current-password">
+          </div>
         </div>
-
-        <div id="usersList" style="display:flex; flex-direction:column; gap:6px;"></div>
-
-        <p id="protectedAdminsNote" style="font-size:0.78rem; color:var(--mac-muted); margin-top:12px;"></p>
-
-        <div class="form-error" id="usersFormError"></div>
+        <div class="form-error" id="adminAuthError"></div>
         <div class="modal-actions">
-          <button class="btn btn-outline" id="btnUsersClose">ปิด</button>
+          <button class="btn btn-outline" id="btnAdminAuthCancel">ยกเลิก</button>
+          <button class="btn btn-primary" id="btnAdminAuthSubmit">เข้าสู่โหมดแอดมิน</button>
         </div>
       </div>
     </div>

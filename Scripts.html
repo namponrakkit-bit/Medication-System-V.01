@@ -10,6 +10,8 @@
     let currentUser = { email: '', name: '', position: '' };
     function getSavedUser(){ try { const s = localStorage.getItem('currentUser'); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
     function saveUser(u){ try { localStorage.setItem('currentUser', JSON.stringify(u)); } catch(e){} }
+    // โหมดแอดมิน (ปลดล็อกด้วยรหัสผ่าน) — คงสถานะต่อแท็บด้วย sessionStorage
+    let isAdmin = (function(){ try { return sessionStorage.getItem('isAdmin') === '1'; } catch(e){ return false; } })();
     let allBoxes = [];
     let currentBoxId = null;
     let editingBoxItemIndex = -1;
@@ -85,22 +87,32 @@
     });
     confirmModalOverlay.addEventListener('click', e => { if (e.target === confirmModalOverlay) closeConfirmModal(); });
 
-    /* ---------------------- Show all UI (ไม่มี RBAC) ---------------------- */
+    /* ---------------------- UI + โหมดแอดมิน ---------------------- */
     function applyUI() {
-      // แสดงทั้งหมด
-      ['menuAddMed', 'menuManageOptions', 'menuExportCsv', 'menuExportSheet', 'menuAdminSettings', 'menuManageUsers'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = '';
-      });
       const actionRow = document.getElementById('medActionRow');
       if (actionRow) actionRow.style.display = 'flex';
-      const createBox = document.getElementById('btnCreateBox');
-      if (createBox) createBox.style.display = '';
       // แสดงชื่อ + ตำแหน่งผู้ใช้
       const chip = document.getElementById('userChip');
       if (chip && currentUser.name) {
         chip.textContent = '👤 ' + currentUser.name + ' · ' + currentUser.position;
       }
+      applyAdminUI();
+    }
+
+    // ปรับหน้าตาตามสถานะโหมดแอดมิน (ปุ่ม admin-only ถูกซ่อน/โชว์ผ่าน body.is-admin ใน CSS)
+    function applyAdminUI() {
+      document.body.classList.toggle('is-admin', isAdmin);
+      const btn = document.getElementById('menuManageUsers');
+      if (btn) btn.textContent = isAdmin ? '🔓 ออกจากโหมดแอดมิน' : '👥 ผู้ใช้ / สิทธิ์';
+    }
+
+    function setAdmin(on) {
+      isAdmin = !!on;
+      try {
+        if (isAdmin) sessionStorage.setItem('isAdmin', '1');
+        else sessionStorage.removeItem('isAdmin');
+      } catch (e) {}
+      applyAdminUI();
     }
 
     /* ---------------------- View Switching ---------------------- */
@@ -423,10 +435,13 @@
       document.getElementById('setRedMonths').value = appSettings.redMonths || 4;
       document.getElementById('setYellowMonths').value = appSettings.yellowMonths || 8;
       document.getElementById('setWebAppUrl').value = sanitizeInput(appSettings.webAppUrl || '');
-      document.getElementById('setAdminEmails').value = sanitizeInput(appSettings.adminEmails || '');
+      const pwInput = document.getElementById('setAdminPassword');
+      pwInput.value = '';
+      pwInput.placeholder = appSettings.hasAdminPassword ? 'มีรหัสอยู่แล้ว — เว้นว่างถ้าไม่ต้องการเปลี่ยน' : 'กรอกรหัสใหม่...';
+      document.getElementById('adminPasswordStatus').textContent = appSettings.hasAdminPassword ? '(ตั้งค่าไว้แล้ว)' : '(ยังไม่ได้ตั้งค่า — ใช้รหัสเริ่มต้น 1234)';
       const warn = document.getElementById('adminOpenWarning');
-      if (!appSettings.adminEmails) {
-        warn.textContent = '⚠️ โหมดเปิดกว้าง: ยังไม่ได้กำหนดอีเมลแอดมิน ทุกคนที่เข้าถึงลิงก์สามารถแก้ไขข้อมูลได้ ควรใส่รายชื่อแอดมินเพื่อความปลอดภัย';
+      if (!appSettings.hasAdminPassword) {
+        warn.textContent = '⚠️ ยังไม่ได้ตั้งรหัสผ่านแอดมิน ระบบใช้รหัสเริ่มต้น "1234" อยู่ ควรตั้งรหัสใหม่เพื่อความปลอดภัย';
         warn.style.display = 'block';
       } else {
         warn.style.display = 'none';
@@ -442,7 +457,7 @@
       const lineTarget = sanitizeInput(document.getElementById('setLineTarget').value);
       const lineToken = document.getElementById('setLineToken').value.trim();
       const webAppUrl = sanitizeInput(document.getElementById('setWebAppUrl').value, 500);
-      const adminEmails = sanitizeInput(document.getElementById('setAdminEmails').value);
+      const adminPassword = document.getElementById('setAdminPassword').value.trim();
 
       if (!validateNumber(redMonths, 1, 12)) {
         adminFormError.textContent = 'เดือนแดงต้องเป็นตัวเลข 1-12';
@@ -462,12 +477,6 @@
         return;
       }
 
-      if (adminEmails && !adminEmails.split(',').every(e => validateEmail(e.trim()))) {
-        adminFormError.textContent = 'รูปแบบอีเมลไม่ถูกต้อง';
-        adminFormError.classList.add('show');
-        return;
-      }
-
       adminFormError.classList.remove('show');
       const btn = document.getElementById('btnAdminSave');
       setButtonLoading(btn, 'กำลังบันทึก...');
@@ -475,11 +484,12 @@
         lineTargetId: lineTarget,
         redMonths: parseInt(redMonths) || 4,
         yellowMonths: parseInt(yellowMonths) || 8,
-        webAppUrl: webAppUrl,
-        adminEmails: adminEmails
+        webAppUrl: webAppUrl
       };
       // ส่ง lineToken เฉพาะเมื่อผู้ใช้กรอกค่าใหม่เท่านั้น (เว้นว่าง = คงค่าเดิม)
       if (lineToken) data.lineToken = lineToken;
+      // ส่ง adminPassword เฉพาะเมื่อผู้ใช้กรอกค่าใหม่เท่านั้น (เว้นว่าง = คงรหัสเดิม)
+      if (adminPassword) data.adminPassword = adminPassword;
       google.script.run.withSuccessHandler(res => {
         resetButtonLoading(btn);
         appSettings = res.settings;
@@ -493,7 +503,47 @@
       }).saveAdminSettings(data);
     });
 
-    // *** Users management disabled - using simple login modal instead ***
+    /* ---------------------- Modal: เข้าสู่โหมดแอดมิน (ใส่รหัสผ่าน) ---------------------- */
+    const adminAuthOverlay = document.getElementById('adminAuthModalOverlay');
+    const adminAuthError = document.getElementById('adminAuthError');
+    function openAdminAuthModal() {
+      const input = document.getElementById('fAdminPassword');
+      input.value = '';
+      adminAuthError.classList.remove('show');
+      adminAuthOverlay.classList.add('open');
+      setTimeout(() => input.focus(), 50);
+    }
+    function closeAdminAuthModal() { adminAuthOverlay.classList.remove('open'); }
+    function submitAdminAuth() {
+      const pw = document.getElementById('fAdminPassword').value;
+      if (!pw) {
+        adminAuthError.textContent = 'กรุณากรอกรหัสผ่าน';
+        adminAuthError.classList.add('show');
+        return;
+      }
+      const btn = document.getElementById('btnAdminAuthSubmit');
+      setButtonLoading(btn, 'กำลังตรวจสอบ...');
+      google.script.run.withSuccessHandler(res => {
+        resetButtonLoading(btn);
+        if (res && res.success) {
+          setAdmin(true);
+          closeAdminAuthModal();
+          showToast('เข้าสู่โหมดแอดมินแล้ว', 'success');
+          if (res.usingDefault) showToast('กำลังใช้รหัสเริ่มต้น 1234 — โปรดตั้งรหัสใหม่ในหน้า "ตั้งค่า"', 'error');
+        } else {
+          adminAuthError.textContent = 'รหัสผ่านไม่ถูกต้อง';
+          adminAuthError.classList.add('show');
+        }
+      }).withFailureHandler(err => {
+        resetButtonLoading(btn);
+        adminAuthError.textContent = err.message || err.toString();
+        adminAuthError.classList.add('show');
+      }).verifyAdminPassword(pw);
+    }
+    document.getElementById('btnAdminAuthSubmit').addEventListener('click', submitAdminAuth);
+    document.getElementById('btnAdminAuthCancel').addEventListener('click', closeAdminAuthModal);
+    adminAuthOverlay.addEventListener('click', e => { if (e.target === adminAuthOverlay) closeAdminAuthModal(); });
+    document.getElementById('fAdminPassword').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAdminAuth(); } });
 
     /* ---------------------- Export ---------------------- */
     function exportCSV() { const btn = document.getElementById('menuExportCsv'); setButtonLoading(btn, 'กำลังสร้างไฟล์...'); google.script.run.withSuccessHandler(result => { resetButtonLoading(btn); if(result.count === 0){ showToast('ไม่มียาที่ใกล้หมดอายุให้ export', 'error'); return; } const byteChars = atob(result.base64); const byteNumbers = new Array(byteChars.length); for(let i=0;i<byteChars.length;i++) byteNumbers[i] = byteChars.charCodeAt(i); const blob = new Blob([new Uint8Array(byteNumbers)], { type: result.mimeType }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = result.filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('ดาวน์โหลด CSV สำเร็จ (' + result.count + ' รายการ)', 'success'); }).withFailureHandler(err => { resetButtonLoading(btn); showToast('Export ไม่สำเร็จ: ' + (err.message || err), 'error'); }).exportExpiringMedicinesCSV(); }
@@ -503,7 +553,11 @@
     document.getElementById('menuAddMed').addEventListener('click', () => { openAddModal(); });
     document.getElementById('menuManageOptions').addEventListener('click', () => { openOptionsModal(); });
     document.getElementById('menuAdminSettings').addEventListener('click', () => { openAdminModal(); });
-    // menuManageUsers removed - no longer needed without RBAC
+    // ปุ่ม "ผู้ใช้ / สิทธิ์": ยังไม่ใช่แอดมิน → เปิดหน้าใส่รหัส; เป็นแอดมินอยู่ → ออกจากโหมดแอดมิน
+    document.getElementById('menuManageUsers').addEventListener('click', () => {
+      if (isAdmin) { setAdmin(false); showToast('ออกจากโหมดแอดมินแล้ว', 'success'); }
+      else openAdminAuthModal();
+    });
     document.getElementById('menuExportCsv').addEventListener('click', exportCSV);
     document.getElementById('menuExportSheet').addEventListener('click', exportSheet);
     document.getElementById('btnMedCancel').addEventListener('click', closeMedModal);

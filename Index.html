@@ -233,14 +233,8 @@
         </div>
         <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* วางลิงก์หลัง Deploy เป็น Web App — QR ที่พิมพ์จะพาสแกนกลับมาเปิดกล่องนี้</p>
 
-        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">ระบบรักษาความปลอดภัย (RBAC)</h3>
-        <div class="form-grid">
-          <div class="form-field full">
-            <label>อีเมลแอดมิน (คั่นด้วยจุลภาค)</label>
-            <input id="setAdminEmails" type="text" placeholder="เช่น admin@hosp.go.th, phar1@hosp.go.th">
-          </div>
-        </div>
-        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* หากไม่กรอก ระบบจะอนุญาตให้ทุกคนที่เข้าถึงลิงก์แก้ไขข้อมูลได้ (ใช้เฉพาะตอน Deploy แบบ Anyone with Google account)</p>
+        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">สิทธิ์การเข้าถึง</h3>
+        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">เวอร์ชันนี้ยังไม่มี RBAC — ทุกคนที่เปิดลิงก์ Web App สามารถดูและแก้ไขข้อมูลได้ ควรจำกัดการเผยแพร่ลิงก์ในองค์กร</p>
 
         <div class="form-error" id="adminFormError"></div>
         <div class="modal-actions">
@@ -447,6 +441,7 @@
   <script>
     window.__RXEBOX_INIT__ = <?!= JSON.stringify({ qr: (typeof initialQr !== 'undefined' ? initialQr : ''), view: (typeof initialView !== 'undefined' ? initialView : '') }) ?>;
   </script>
+  <?!= include('QrLib'); ?>
   <?!= include('Scripts'); ?>
 </body>
 </html>

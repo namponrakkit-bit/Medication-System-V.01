@@ -51,6 +51,7 @@ function getAllBoxLabelData() {
   const headers = values[0];
   const idIdx = headers.indexOf('boxId');
   const tokenIdx = headers.indexOf('qrToken');
+  if (tokenIdx < 0) throw new Error('ไม่พบคอลัมน์ qrToken');
   const labels = [];
 
   for (let i = 1; i < values.length; i++) {
@@ -84,6 +85,7 @@ function findBoxByQrToken(qrToken) {
   const headers = values.shift();
   const tokenIdx = headers.indexOf('qrToken');
   const idIdx = headers.indexOf('boxId');
+  if (tokenIdx < 0) throw new Error('ไม่พบคอลัมน์ qrToken');
 
   for (let i = 0; i < values.length; i++) {
     if ((values[i][tokenIdx] || '').toString().trim() === qrToken) {
@@ -98,7 +100,8 @@ function findBoxByQrToken(qrToken) {
 }
 
 function generateQrToken_() {
-  return Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+  // UUID แบบ compact — อ่านง่ายบนฉลาก และยากต่อการเดา
+  return Utilities.getUuid().replace(/-/g, '').substring(0, 16);
 }
 
 function getWebAppUrl_() {
@@ -236,7 +239,15 @@ function getAdminBoxDetails(boxId) {
   const itemsSheet = getBoxItemsSheet_();
   const itemValues = itemsSheet.getDataRange().getValues();
   const itemHeaders = itemValues.shift();
-  const items = itemValues.filter(row => row[itemHeaders.indexOf('boxId')].toString() === boxId.toString()).map(row => rowToObject_(itemHeaders, row));
+  const boxIdIdx = itemHeaders.indexOf('boxId');
+  const items = [];
+  for (let i = 0; i < itemValues.length; i++) {
+    if (itemValues[i][boxIdIdx].toString() === boxId.toString()) {
+      const item = rowToObject_(itemHeaders, itemValues[i]);
+      item.rowIndex = i + 2; // แถวจริงในชีต (หลัง header)
+      items.push(item);
+    }
+  }
 
   const historySheet = getBoxHistorySheet_();
   const histValues = historySheet.getDataRange().getValues();

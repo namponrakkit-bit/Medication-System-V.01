@@ -29,6 +29,9 @@
 
     .main-tabs { margin-top: 12px; margin-bottom: 0; }
     .action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    /* Admin-only controls: hidden until admin mode is unlocked (body.is-admin) */
+    .admin-only { display: none !important; }
+    body.is-admin .admin-only { display: inline-flex !important; }
 
     .btn{ display:inline-flex; align-items:center; gap:6px; border:none; border-radius:9px; padding:9px 16px; font-size:0.9rem; font-weight:500; cursor:pointer; transition: all 0.1s; font-family:inherit; }
     .btn:active{transform:scale(0.97);}

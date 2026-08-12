@@ -40,8 +40,8 @@
       <div class="stats-row">
         <div class="stat-card total"><div class="num" id="statTotal">-</div><div class="lbl">รายการยาทั้งหมด</div></div>
         <div class="stat-card expired"><div class="num" id="statExpired">-</div><div class="lbl">หมดอายุแล้ว</div></div>
-        <div class="stat-card red"><div class="num" id="statRed">-</div><div class="lbl" id="lblRed">ใกล้หมด 1-4 เดือน</div></div>
-        <div class="stat-card yellow"><div class="num" id="statYellow">-</div><div class="lbl" id="lblYellow">ใกล้หมด 5-8 เดือน</div></div>
+        <div class="stat-card red"><div class="num" id="statRed">-</div><div class="lbl" id="lblRed">ใกล้หมด ≤90 วัน</div></div>
+        <div class="stat-card yellow"><div class="num" id="statYellow">-</div><div class="lbl" id="lblYellow">ใกล้หมด ≤180 วัน</div></div>
         <div class="stat-card green"><div class="num" id="statGreen">-</div><div class="lbl">ปกติ</div></div>
       </div>
 
@@ -94,7 +94,6 @@
           <button class="btn btn-outline btn-sm" id="menuManageOptions">🗂 หมวดหมู่ / ที่จัดเก็บ</button>
           <button class="btn btn-outline btn-sm" id="menuExportCsv">📥 Export CSV</button>
           <button class="btn btn-outline btn-sm" id="menuExportSheet">📊 Export Sheet</button>
-          <button class="btn btn-outline btn-sm" id="menuManageUsers">👥 ผู้ใช้ / สิทธิ์</button>
           <button class="btn btn-outline btn-sm" id="menuAdminSettings">⚙️ ตั้งค่า</button>
         </div>
       </div>
@@ -120,6 +119,7 @@
         <div class="search-box">
           <input id="boxSearchInput" type="text" placeholder="ค้นหาหมายเลขกล่อง หรือแผนก..." autocomplete="off">
           <button id="btnCreateBox" class="btn btn-primary">➕ สร้างกล่องยา</button>
+          <button id="btnBoxEditors" class="btn btn-outline">👥 ผู้แก้ไข</button>
         </div>
         <!-- แท็บสถานะกล่องยา -->
         <div class="tabs-container" id="boxStatusTabs">
@@ -202,40 +202,58 @@
 
   <!-- ============ Modal: ตั้งค่าระบบ (Admin) ============ -->
   <div class="modal-overlay" id="adminModalOverlay">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width:680px;">
       <div class="modal-header-area">
         <div class="traffic-lights"><div class="light red"></div><div class="light yellow"></div><div class="light green"></div></div>
         <h2>ตั้งค่าระบบ (สำหรับแอดมิน)</h2>
         <div style="width: 52px;"></div>
       </div>
       <div class="modal-content-area">
-        <div class="modal-sub">กำหนดค่าการเชื่อมต่อ LINE และเกณฑ์การแจ้งเตือนยาใกล้หมดอายุ</div>
-        <div class="form-error" id="adminOpenWarning" style="background:rgba(255,214,10,0.15); color:#a97511; display:none;"></div>
-        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:10px 0 8px;">การแจ้งเตือนผ่าน LINE</h3>
-        <div class="form-grid">
-          <div class="form-field full"><label>LINE Channel Access Token <span id="tokenStatus" style="font-weight:400; color:var(--mac-muted);"></span></label><input id="setLineToken" type="password" placeholder="วาง Token ที่นี่..."></div>
-          <div class="form-field full"><label>LINE Target ID (User ID หรือ Group ID)</label><input id="setLineTarget" type="text" placeholder="เช่น U1234... หรือ C1234..."></div>
-        </div>
-        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">เกณฑ์การแจ้งเตือนวันหมดอายุ</h3>
-        <div class="form-grid">
-          <div class="form-field"><label>แดง (ด่วนมาก) หากเหลือไม่เกิน (เดือน)</label><input id="setRedMonths" type="number" min="0" max="12" placeholder="4"></div>
-          <div class="form-field"><label>เหลือง (เฝ้าระวัง) หากเหลือไม่เกิน (เดือน)</label><input id="setYellowMonths" type="number" min="1" max="24" placeholder="8"></div>
-        </div>
-        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* ตัวอย่าง: หากตั้งแดง=3 และเหลือง=6 ยาที่เหลือ 1-3 เดือนจะเป็นสีแดง, 4-6 เดือนจะเป็นสีเหลือง</p>
-
-        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">ระบบรักษาความปลอดภัย (RBAC)</h3>
-        <div class="form-grid">
-          <div class="form-field full">
-            <label>อีเมลแอดมิน (คั่นด้วยจุลภาค)</label>
-            <input id="setAdminEmails" type="text" placeholder="เช่น admin@hosp.go.th, phar1@hosp.go.th">
+        <!-- ขั้นที่ 1: ใส่รหัสแอดมิน -->
+        <div id="adminPinGate">
+          <div class="modal-sub">กรอกรหัสแอดมินเพื่อแก้ไขการตั้งค่าระบบ</div>
+          <div class="form-grid">
+            <div class="form-field full">
+              <label>รหัสแอดมิน</label>
+              <input id="adminPinInput" type="password" placeholder="ใส่รหัสแอดมิน..." autocomplete="off">
+            </div>
+          </div>
+          <div class="form-error" id="adminPinError"></div>
+          <div class="modal-actions">
+            <button class="btn btn-outline" id="btnAdminClose">ปิด</button>
+            <button class="btn btn-primary" id="btnAdminUnlock">ยืนยันรหัส</button>
           </div>
         </div>
-        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* หากไม่กรอก ระบบจะอนุญาตให้ทุกคนที่เข้าถึงลิงก์แก้ไขข้อมูลได้ (ใช้เฉพาะตอน Deploy แบบ Anyone with Google account)</p>
 
-        <div class="form-error" id="adminFormError"></div>
-        <div class="modal-actions">
-          <button class="btn btn-outline" id="btnAdminClose">ปิด</button>
-          <button class="btn btn-primary" id="btnAdminSave">บันทึกการตั้งค่า</button>
+        <!-- ขั้นที่ 2: ฟอร์มตั้งค่า (ซ่อนจนกว่าจะปลดล็อก) -->
+        <div id="adminFormContainer" style="display:none;">
+          <div class="modal-sub">กำหนดค่าการเชื่อมต่อ LINE และเกณฑ์การแจ้งเตือนยาใกล้หมดอายุ</div>
+          <h3 style="font-size:0.9rem; color:var(--mac-text); margin:10px 0 8px;">การแจ้งเตือนผ่าน LINE</h3>
+          <div class="form-grid">
+            <div class="form-field full"><label>LINE Channel Access Token <span id="tokenStatus" style="font-weight:400; color:var(--mac-muted);"></span></label><input id="setLineToken" type="password" placeholder="วาง Token ที่นี่..."></div>
+            <div class="form-field full"><label>LINE Target ID (User ID หรือ Group ID)</label><input id="setLineTarget" type="text" placeholder="เช่น U1234... หรือ C1234..."></div>
+          </div>
+          <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">เกณฑ์การแจ้งเตือนวันหมดอายุ (วัน)</h3>
+          <div class="form-grid">
+            <div class="form-field"><label>แดง (ด่วนมาก) หากเหลือไม่เกิน (วัน)</label><input id="setRedDays" type="number" min="1" max="730" placeholder="90"></div>
+            <div class="form-field"><label>เหลือง (เฝ้าระวัง) หากเหลือไม่เกิน (วัน)</label><input id="setYellowDays" type="number" min="1" max="1095" placeholder="180"></div>
+            <div class="form-field"><label>เวลาส่ง LINE รายวัน (ชั่วโมง 0–23)</label><select id="setNotifyHour"></select></div>
+          </div>
+          <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:4px;">* ตัวอย่าง: แดง=90 และเหลือง=180 → ยาเหลือ 50 วัน=แดง, 120 วัน=เหลือง, 200 วัน=เขียว</p>
+
+          <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">รหัสแอดมิน</h3>
+          <div class="form-grid">
+            <div class="form-field full">
+              <label>เปลี่ยนรหัสแอดมิน (เว้นว่าง = ไม่เปลี่ยน)</label>
+              <input id="setNewAdminCode" type="password" placeholder="รหัสใหม่อย่างน้อย 4 ตัวอักษร..." autocomplete="new-password">
+            </div>
+          </div>
+
+          <div class="form-error" id="adminFormError"></div>
+          <div class="modal-actions">
+            <button class="btn btn-outline" id="btnAdminCloseForm">ปิด</button>
+            <button class="btn btn-primary" id="btnAdminSave">บันทึกการตั้งค่า</button>
+          </div>
         </div>
       </div>
     </div>
@@ -312,16 +330,21 @@
       <div class="modal-content-area">
         <div class="modal-tabs">
           <div class="modal-tab active" data-tab="items">🧾 รายการยาในกล่อง</div>
-          <div class="modal-tab" data-tab="history">📜 ประวัติการเคลื่อนย้าย</div>
+          <div class="modal-tab" data-tab="history">📜 ประวัติ / ผู้แก้ไข</div>
         </div>
 
         <!-- Tab 1: Items -->
         <div class="tab-content active" id="tab-items">
           <div class="form-grid" style="margin-bottom: 12px;">
+            <div class="form-field"><label>หมายเลข/ชื่อกล่อง</label><input id="fBoxDetailNo" type="text" placeholder="เช่น 10, EMS, LR"></div>
+            <div class="form-field" style="display:flex; align-items:flex-end; gap:8px;">
+              <button class="btn btn-primary btn-sm" id="btnSaveBoxNo">บันทึกชื่อ</button>
+              <button class="btn btn-outline btn-sm" id="btnEditBox">✏️ แก้ข้อมูลกล่อง</button>
+            </div>
             <div class="form-field"><label>ที่อยู่ปัจจุบัน (เปลี่ยนแผนก)</label><select id="fBoxDetailDept"><option value="">-- เลือก --</option></select></div>
             <div class="form-field" style="display:flex; align-items:flex-end; gap:8px;">
               <button class="btn btn-primary btn-sm" id="btnChangeDept">ย้ายแผนก</button>
-              <button class="btn btn-outline btn-sm" id="btnPrintLabel">🖨️ พิมพ์ฉลาก</button>
+              <button class="btn btn-outline btn-sm" id="btnPrintLabel">🖨️ พิมพ์สติ๊กเกอร์ Godex</button>
             </div>
           </div>
 
@@ -334,6 +357,7 @@
 
         <!-- Tab 2: History -->
         <div class="tab-content" id="tab-history">
+          <div id="boxEditorsSummary" style="margin-bottom:12px;"></div>
           <div id="boxHistoryList" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
 
@@ -386,6 +410,30 @@
         <div class="modal-actions">
           <button class="btn btn-outline" id="btnConfirmCancel" type="button">ยกเลิก</button>
           <button class="btn btn-danger" id="btnConfirmOk" type="button">ลบ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal: รายชื่อผู้แก้ไขกล่องยา (Admin) ============ -->
+  <div class="modal-overlay" id="boxEditorsModalOverlay">
+    <div class="modal-box" style="max-width: 720px;">
+      <div class="modal-header-area">
+        <div class="traffic-lights"><div class="light red"></div><div class="light yellow"></div><div class="light green"></div></div>
+        <h2>รายชื่อผู้แก้ไขกล่องยา</h2>
+        <div style="width: 52px;"></div>
+      </div>
+      <div class="modal-content-area">
+        <div class="modal-sub">สรุปจากประวัติการแก้ไขทั้งหมด (รวมการแก้จากมือถือผ่าน QR)</div>
+        <div class="modal-tabs" id="editorsModalTabs">
+          <div class="modal-tab active" data-editors-tab="people">👥 รายชื่อผู้แก้ไข</div>
+          <div class="modal-tab" data-editors-tab="recent">🕒 กิจกรรมล่าสุด</div>
+        </div>
+        <div id="editorsPeoplePane" style="margin-top:12px;"></div>
+        <div id="editorsRecentPane" style="margin-top:12px; display:none;"></div>
+        <div class="modal-actions" style="margin-top: 20px;">
+          <button class="btn btn-outline" id="btnBoxEditorsRefresh">รีเฟรช</button>
+          <button class="btn btn-primary" id="btnBoxEditorsClose">ปิด</button>
         </div>
       </div>
     </div>

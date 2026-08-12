@@ -1,264 +1,115 @@
-# ⚡ Performance Guide - ระบบจัดการยา
+# Performance Guide — ระบบจัดการยา
 
-## 📊 ปัญหาประสิทธิภาพปัจจุบัน
-
-### เมื่อข้อมูล 10,000+ records
-- ⚠️ Initial load: **3-5 วินาที**
-- ⚠️ Rendering results: **2-3 วินาที** (freeze UI)
-- ⚠️ Autocomplete: **1-2 วินาที** (O(n) search)
+อัปเดตตามโค้ดปัจจุบัน (2026-08-12)
 
 ---
 
-## ✅ Optimizations ที่ทำไปแล้ว
+## สถานะปัจจุบัน (จากโค้ดจริง)
 
-### 1. Input Validation (Minor Performance Impact)
-- ✅ Early validation ก่อน API call
-- ✅ ลด invalid requests ไป backend
+### Flow การโหลด
 
-### 2. HTML Escaping Optimization
-- ✅ Cache escaped values เมื่อ possible
-- ✅ Use `textContent` instead of `innerHTML` เมื่อเป็นไปได้
+```
+เปิดเว็บ → getInitialData()
+         ├─ getAllMedicines()     อ่านชีตทั้งก้อน
+         ├─ getCatalogFromMeds_() วนซ้ำสร้าง catalog
+         ├─ getOptions()
+         └─ getClientSettings_()
+
+สลับแท็บ RxEbox → loadBoxes() → getBoxesData()  (RPC ครั้งที่ 2)
+
+ค้นหา/กรอง → applyFilters() O(n) ทุกครั้ง
+           → renderMoreMeds() 50 รายการ/ครั้ง (RENDER_PAGE_SIZE)
+```
+
+### จุดช้าหลัก
+
+| จุด | สถานะ | ผลกระทบโดยประมาณ |
+|---|---|---|
+| `getInitialData()` โหลดยาทั้งชีต + catalog | ยังทำ | 2–5s เมื่อยา >1,000 |
+| `applyFilters()` scan ทุกฟิลด์ O(n) | ยังทำ | 200ms+ เมื่อข้อมูลเยอะ |
+| Autocomplete `medCatalog.forEach` | O(n) | 150ms+ |
+| `loadBoxes()` แยก RPC เมื่อสลับแท็บ | ยังทำ | หน่วงสลับ RxEbox |
+| Render 50 รายการ/ครั้ง (`renderMoreMeds`) | **ทำแล้ว** | ดีหลัง filter |
+| `listUsers()` ตอนเปิดตั้งค่า | **ลบแล้ว** | ลด 1 RPC |
+
+### สิ่งที่ optimize แล้ว
+
+1. **Client-side pagination** — `RENDER_PAGE_SIZE = 50` ใน [`gas/Scripts.html`](gas/Scripts.html)
+2. **Debounce ค้นหา** — 300ms ก่อน `applyFilters()`
+3. **Input validation ก่อน API** — ลด invalid requests
+4. **ลบ listUsers จากหน้าตั้งค่า** — เปิด modal เร็วขึ้นเล็กน้อย
 
 ---
 
-## 🎯 Optimizations ที่ต้องทำ (Priority Order)
+## เกณฑ์แนะนำ
 
-### Priority 1: ต้องทำทันที (เมื่อ data > 5,000)
+| จำนวนยา | สถานะ | แนะนำ |
+|---|---|---|
+| < 1,000 | ใช้ได้ดี | ไม่ต้อง optimize |
+| 1,000–5,000 | ควร monitor | สังเกตเวลาโหลดและค้นหา |
+| > 5,000 | ช้าชัด | ต้อง server-side pagination |
 
-#### 1. API Call Consolidation
-**ปัญหา**: เรียก `getInitialData()` + `getBoxesData()` แยกต่างหาก
-**วิธีแก้**:
+---
+
+## Optimization ถัดไป (ยังไม่ทำ)
+
+### Priority 1 — เมื่อข้อมูล > 5,000
+
+**Server-side pagination** — API มีแล้วใน [`gas/Medicine.gs`](gas/Medicine.gs):
+- `getMedicineStats()` — สรุปจำนวนตามสถานะ
+- `searchMedicines({ q, category, location, expiry, had, page, pageSize })` — หน้าละ ~50
+
+Frontend ยังโหลดทั้งหมดผ่าน `getInitialData()` — ต้องสลับมาใช้ `searchMedicines` เมื่อข้อมูลโต
+
+### Priority 2
+
+1. **Search index** สำหรับ autocomplete (O(1) แทน O(n))
+2. **Lazy load boxes** — โหลดเมื่อสลับแท็บ (ทำอยู่แล้ว) หรือ prefetch หลัง initial load
+3. **รวม catalog** — สร้างตอน backend ครั้งเดียว ไม่วนซ้ำใน `getCatalogFromMeds_`
+
+### Priority 3
+
+- Virtual scrolling สำหรับ list view
+- CSS minification
+
+---
+
+## Benchmark เป้าหมาย
+
+| Action | ปัจจุบัน (ยา ~1,000) | หลัง optimize (ยา >5,000) |
+|---|---|---|
+| Initial load | 1–2s | <1s (paginated) |
+| Render หลัง filter | 200ms | 200ms |
+| Autocomplete | 50–150ms | <10ms (index) |
+| เปิดตั้งค่า | <500ms | <500ms |
+
+---
+
+## วิธีเช็ค performance
+
+### Browser DevTools Console
+
 ```javascript
-// Backend (.gs)
-function getAllData() {
-  const user = Session.getActiveUser();
-  return {
-    medicines: getMedicinesData(),
-    boxes: getBoxesData(),
-    options: getOptionsData(),
-    settings: getAdminSettings()
-  };
-}
-
-// Frontend
-reloadAll() {
-  google.script.run.withSuccessHandler(data => {
-    allMeds = data.medicines;
-    allBoxes = data.boxes;
-    options = data.options;
-    appSettings = data.settings;
-    updateUI();
-  }).getAllData();
-}
-```
-**ผลลัพธ์**: ลด API call จาก 2 เป็น 1 = **50% faster**
-
-#### 2. Pagination (Must-Have for Large Datasets)
-**ปัญหา**: render 10,000 items พร้อมกัน = freeze UI
-**วิธีแก้**:
-```javascript
-// Backend
-function getMedicinesPage(page = 1, pageSize = 50) {
-  const start = (page - 1) * pageSize;
-  const meds = getAllMedicines();
-  return {
-    items: meds.slice(start, start + pageSize),
-    total: meds.length,
-    page: page,
-    totalPages: Math.ceil(meds.length / pageSize)
-  };
-}
-
-// Frontend
-let currentPage = 1;
-function loadNextPage() {
-  google.script.run.withSuccessHandler(data => {
-    allMeds = [...allMeds, ...data.items];
-    renderResults(data.items);
-    currentPage++;
-  }).getMedicinesPage(currentPage, 50);
-}
-```
-**ผลลัพธ์**: Initial load **90% faster** (50 items vs 10,000)
-
-#### 3. Virtual Scrolling (For Smooth Scrolling)
-**ปัญหา**: 10,000 DOM elements ในหน้า = memory leak
-**วิธีแก้**: ใช้ library เช่น `virtual-scroll`
-```javascript
-// Render only visible items
-function virtualRender(items, containerHeight = 800, itemHeight = 100) {
-  const scrollTop = resultsEl.scrollTop;
-  const visibleStart = Math.floor(scrollTop / itemHeight);
-  const visibleEnd = visibleStart + Math.ceil(containerHeight / itemHeight);
-  
-  const visible = items.slice(visibleStart, visibleEnd);
-  const offset = visibleStart * itemHeight;
-  
-  resultsEl.innerHTML = `<div style="transform: translateY(${offset}px);">
-    ${visible.map(item => renderCard(item)).join('')}
-  </div>`;
-}
-```
-**ผลลัพธ์**: Memory usage **80% lower**
-
----
-
-### Priority 2: ควรทำ (Optimization)
-
-#### 4. Search Index (Faster Autocomplete)
-**ปัญหา**: ค้นหา medCatalog ด้วย `.forEach()` = O(n)
-**วิธีแก้**: สร้าง Hash Map Index
-```javascript
-// Build index on load
-let medIndex = {};
-function buildMedIndex() {
-  medIndex = {};
-  medCatalog.forEach(med => {
-    const name = (med['ชื่อยา'] || '').toLowerCase();
-    const generic = (med['ชื่อสามัญ'] || '').toLowerCase();
-    const code = (med['รหัสยา'] || '').toLowerCase();
-    
-    [name, generic, code].forEach(key => {
-      if (!medIndex[key]) medIndex[key] = [];
-      medIndex[key].push(med);
-    });
-  });
-}
-
-// ค้นหาทันที
-function searchMeds(query) {
-  const q = query.toLowerCase();
-  return medIndex[q] || [];
-}
-```
-**ผลลัพธ์**: Search time **99% faster** (O(1) vs O(n))
-
-#### 5. Image Optimization
-**ปัญหา**: inline emoji ทำให้ DOM บวม
-**วิธีแก้**: ใช้ CSS icons แทน
-```css
-.icon::before { content: '💊'; }
-.icon-box::before { content: '🚑'; }
+console.time('filter');
+applyFilters();
+console.timeEnd('filter');
 ```
 
-#### 6. CSS Minification
-**ปัญหา**: inline CSS ทั้งหมด = ~50KB
-**วิธีแก้**: minify CSS
-```javascript
-// ใช้ CSS minifier online หรือ npm
-// cssnano, clean-css
-```
+### GAS Execution log
 
----
-
-### Priority 3: Nice-to-Have (Polish)
-
-#### 7. Lazy Loading (for future features)
-- Load images on scroll
-- Load additional data as user needs
-
-#### 8. Service Worker (Offline Support)
-- Cache ข้อมูลเก่า
-- Work offline ถ้าต้องการ
-
-#### 9. Progressive Enhancement
-- Show skeleton loaders
-- Incremental rendering
-
----
-
-## 🚀 Benchmark Targets
-
-### Before Optimization
-| Action | Time |
-|--------|------|
-| Initial load | 5s |
-| Render 10,000 items | 3s |
-| Search (O(n)) | 200ms |
-| Autocomplete | 150ms |
-
-### After Optimization (Realistic)
-| Action | Time |
-|--------|------|
-| Initial load | 1s |
-| Render 50 items (paginated) | 200ms |
-| Search (O(1) index) | 5ms |
-| Autocomplete | 10ms |
-
----
-
-## 📋 Implementation Roadmap
-
-### Phase 1 (Critical - Week 1)
-- [ ] API Call Consolidation
-- [ ] Pagination Backend + Frontend
-- [ ] Test with 5,000+ records
-
-### Phase 2 (Important - Week 2-3)
-- [ ] Search Index Build
-- [ ] Virtual Scrolling
-- [ ] Minify CSS/JS
-
-### Phase 3 (Nice-to-Have - Week 4+)
-- [ ] Lazy loading
-- [ ] Service Worker
-- [ ] Analytics
-
----
-
-## 💡 Monitoring Performance
-
-### เช็ค performance ใน Browser DevTools
-```javascript
-// ใน Console
-performance.mark('search-start');
-// ... do search ...
-performance.mark('search-end');
-performance.measure('search', 'search-start', 'search-end');
-performance.getEntriesByType('measure');
-```
-
-### Google Apps Script Execution Time
 ```javascript
 function logExecutionTime() {
   const start = new Date();
   // ... do something ...
-  const elapsed = new Date() - start;
-  Logger.log('Execution time: ' + elapsed + 'ms');
+  Logger.log('Execution time: ' + (new Date() - start) + 'ms');
 }
 ```
 
 ---
 
-## 🔧 Testing Optimization
+## เมื่อไหร่ควร optimize
 
-### Load Test Script
-```javascript
-// Run in DevTools Console
-const items = Array.from({length: 10000}, (_, i) => ({
-  name: 'Medicine ' + i,
-  expiry: '2027-01-01'
-}));
+- **DO** optimize: โหลด >2s, ผู้ใช้บ่น, ยา >5,000
+- **DON'T** optimize: โหลด <1s, ยา <1,000, ไม่มี complaint
 
-console.time('render');
-renderResults(items);
-console.timeEnd('render');
-```
-
----
-
-## 📞 When to Optimize
-
-- ✅ DO optimize if: Users report slowness, Load time > 2s, Memory > 100MB
-- ❌ DON'T optimize if: Load time < 1s, Memory < 50MB, No performance complaints
-
-**Remember: Premature optimization is the root of all evil** - Donald Knuth
-
-**Current Status**: 
-- Small datasets (< 1,000): ✅ No optimization needed
-- Medium datasets (1,000-5,000): ⚠️ Monitor, optimize if needed
-- Large datasets (> 5,000): 🔴 Must optimize
-
----
-
-**Last Updated**: 2026-08-06
+**Last Updated**: 2026-08-12

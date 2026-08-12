@@ -1,4 +1,4 @@
-# คู่มือ Deploy + สิทธิ์ (RBAC) — ระบบจัดการยา & กล่องยา (RxEbox)
+# คู่มือ Deploy + สิทธิ์ — ระบบจัดการยา & กล่องยา (RxEbox)
 
 ระบบนี้ทำงานบน **Google Apps Script (GAS) + Google Sheets** โค้ดทั้งหมดถูกแยกเป็นไฟล์ย่อยในโฟลเดอร์ [`gas/`](gas/) เพื่อให้ดูแลง่าย
 
@@ -10,15 +10,16 @@
 |---|---|---|
 | `Config.gs` | Script | ค่าคงที่: ชื่อชีต, หัวตาราง, ค่าคงที่ LINE |
 | `Main.gs` | Script | `doGet` (Web App entry) + `include()` |
-| `Auth.gs` | Script | `getUserEmail_`, `isAdmin_`, `requireAdmin_`, `getCurrentUser` |
+| `Auth.gs` | Script | ข้อมูลผู้ใช้พื้นฐาน (ไม่มี RBAC อีเมล) |
 | `SheetHelpers.gs` | Script | เปิดชีต, `rowToObject_` |
-| `Settings.gs` | Script | ตั้งค่าระบบ (`getAdminSettings` ภายใน / `getClientSettings_` ปลอดภัย) |
+| `Settings.gs` | Script | ตั้งค่าระบบ + รหัสแอดมิน (`ADMIN_CODE`) |
 | `Medicine.gs` | Script | CRUD คลังยา + `getInitialData` + `getMedicineStats`/`searchMedicines` |
 | `Options.gs` | Script | หมวดหมู่ / ที่จัดเก็บ |
 | `ExportNotify.gs` | Script | สถานะวันหมดอายุ, Export CSV/Sheet, แจ้งเตือน LINE |
 | `Boxes.gs` | Script | RxEbox ทั้งหมด |
-| `Users.gs` | Script | จัดการผู้ใช้/บทบาท (แท็บ `Users`) |
+| `Users.gs` | Script | บันทึกชื่อ+ตำแหน่งผู้ใช้ (แท็บ `Users`) |
 | `Index.html` | HTML | โครงหน้า + `include('Styles')` / `include('Scripts')` |
+| `BoxView.html` | HTML | หน้ามือถือสำหรับสแกน QR ดู/แก้กล่องยา |
 | `Styles.html` | HTML | CSS ทั้งหมด |
 | `Scripts.html` | HTML | JavaScript ทั้งหมด |
 | `appsscript.json` | Manifest | timezone + ค่า Web App |
@@ -32,7 +33,7 @@
 ### 2.1 คัดลอกเอง (ง่ายสุด)
 1. เปิดโปรเจกต์ Apps Script ที่ผูกกับ Google Sheet ของคลังยา
 2. สร้างไฟล์ให้ตรงชื่อในตารางด้านบน แล้ววางเนื้อหาจากโฟลเดอร์ `gas/`
-   - ไฟล์ HTML สร้างชื่อ `Index`, `Styles`, `Scripts`
+   - ไฟล์ HTML สร้างชื่อ `Index`, `Styles`, `Scripts`, `BoxView`
 3. บันทึกทุกไฟล์
 
 ### 2.2 ใช้ clasp (ลดการ copy-paste ผิดพลาด — แนะนำเมื่อแก้บ่อย)
@@ -53,55 +54,54 @@ clasp push
 
 | Key | ค่า | จำเป็น |
 |---|---|---|
-| `ADMIN_EMAILS` | อีเมลแอดมิน คั่นด้วยจุลภาค เช่น `a@hosp.go.th, b@hosp.go.th` | แนะนำอย่างยิ่ง |
+| `ADMIN_CODE` | รหัสแอดมินสำหรับหน้าตั้งค่า (ค่าเริ่มต้น `1234` ถ้ายังไม่ตั้ง) | แนะนำ |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API token | เฉพาะถ้าใช้แจ้งเตือน |
 | `LINE_TARGET_ID` | User/Group ID ปลายทาง | เฉพาะถ้าใช้แจ้งเตือน |
 | `SHEET_ID` | ID ของ Spreadsheet (ถ้าไม่ผูกกับชีตโดยตรง) | ไม่บังคับ |
-| `RED_MONTHS` / `YELLOW_MONTHS` | เกณฑ์เดือนแดง/เหลือง (ตั้งผ่านหน้าเว็บได้) | ไม่บังคับ |
+| `RED_DAYS` / `YELLOW_DAYS` | เกณฑ์วันแดง/เหลือง (ค่าเริ่มต้น 90 / 180 — ตั้งผ่านหน้าเว็บได้) | ไม่บังคับ |
+| `NOTIFY_HOUR` | ชั่วโมงส่ง LINE รายวัน 0–23 (ค่าเริ่มต้น 8) | ไม่บังคับ |
 
 > LINE token ตั้งผ่านหน้าเว็บ (โมดัลตั้งค่า) ได้เช่นกัน และ **จะไม่ถูกส่งกลับมาที่ frontend** อีก — หน้าเว็บเห็นแค่สถานะ "ตั้งค่าไว้แล้ว/ยังไม่ได้ตั้งค่า" เท่านั้น เว้นช่อง token ว่างไว้ = คงค่าเดิม
 
+> บันทึกการตั้งค่าจากหน้าเว็บจะสร้าง trigger แจ้งเตือน LINE ใหม่ตาม `NOTIFY_HOUR` อัตโนมัติ (หรือรัน `createDailyTrigger()` ใน GAS editor ครั้งแรก)
+
+> ถ้ามี `RED_MONTHS` / `YELLOW_MONTHS` เก่าอยู่ ระบบจะแปลงเป็นวัน (×30) ตอนอ่านครั้งแรก
+
 ---
 
-## 4. Deploy เป็น Web App (สำคัญต่อ RBAC)
+## 4. Deploy เป็น Web App
 
 **Deploy → New deployment → Web app** แล้วตั้งค่า:
 
-- **Execute as: `User accessing the web app`** ← ต้องเป็นแบบนี้
-- **Who has access: `Anyone with Google account`** (หรือจำกัดเฉพาะโดเมนองค์กร)
-
-เหตุผล: RBAC ในระบบใช้ `Session.getActiveUser().getEmail()` เพื่อดูว่าอีเมลผู้ใช้อยู่ใน `ADMIN_EMAILS` หรือไม่ ถ้า Deploy เป็น *Execute as: Me* ระบบจะได้อีเมลเจ้าของสคริปต์เสมอ ทำให้ RBAC ไม่ทำงาน
+- **Execute as: `User accessing the web app`** หรือ **`Me`** ตามนโยบายองค์กร
+- **Who has access:** ตามนโยบาย (Anyone with Google account / จำกัดโดเมน)
 
 > ทุกครั้งที่แก้โค้ดแล้วต้องการให้ผู้ใช้เห็นเวอร์ชันใหม่: **Deploy → Manage deployments → แก้ deployment เดิม → Version: New version**
 
 ---
 
-## 5. RBAC ทำงานอย่างไร (3 บทบาท)
+## 5. ระบบสิทธิ์ (ลงชื่อ + รหัสแอดมิน)
 
-ระบบสิทธิ์เป็นแบบ **capability** กำหนดที่เดียวใน `ROLE_CAPS` ([`gas/Auth.gs`](gas/Auth.gs))
+ระบบใช้ 2 ชั้น ไม่มี RBAC อีเมล:
 
-| ความสามารถ | แอดมิน | เภสัชกร | พยาบาล |
-|---|:---:|:---:|:---:|
-| ดู / ค้นหา | ✅ | ✅ | ✅ |
-| เพิ่ม/แก้ไข/ลบยา (คลังหลัก) | ✅ | ✅ | ❌ |
-| จัดการหมวดหมู่ / ที่จัดเก็บ | ✅ | ✅ | ❌ |
-| Export CSV / Sheet | ✅ | ✅ | ❌ |
-| จัดการกล่องยา (สร้าง/ลบ/ย้ายแผนก/ยาในกล่อง) | ✅ | ✅ | ❌ |
-| ตั้งค่าระบบ (LINE/เกณฑ์เตือน) | ✅ | ❌ | ❌ |
-| จัดการผู้ใช้/สิทธิ์ | ✅ | ❌ | ❌ |
+### 5.1 ลงชื่อก่อนใช้งาน
+- เปิดเว็บครั้งแรก (หรือเครื่องใหม่) ต้องกรอก **ชื่อ + ตำแหน่ง** ก่อนเข้าใช้
+- ข้อมูลบันทึกใน localStorage และแท็บ `Users` ในชีต
+- ทุกการแก้ไขยา/กล่องยาบันทึกชื่อผู้ทำลงประวัติ
 
-- Backend: ทุก write path เรียก `require_(capability)` ก่อนเสมอ — กันการยิงตรงจาก client
-- Frontend: `getInitialData()` คืน `currentUser = { email, role, roleLabel, caps }` แล้วซ่อน/แสดงปุ่มตาม `caps`
-- ป้ายมุมขวาบนแสดงบทบาท: `🔓 แอดมิน` / `🧪 เภสัชกร` / `👁️ ดูอย่างเดียว` พร้อมอีเมล
+### 5.2 รหัสแอดมิน (หน้าตั้งค่าเท่านั้น)
+- กด **⚙️ ตั้งค่า** → ใส่รหัสแอดมิน → ปลดล็อกฟอร์ม
+- บันทึกการตั้งค่า (LINE, เกณฑ์วัน, เวลาแจ้งเตือน, แก้ผู้ใช้, เปลี่ยนรหัส) ต้องส่งรหัสที่ถูกต้องไปตรวจฝั่ง server (`saveAdminSettings`)
+- ค่าเริ่มต้น: **`1234`** (ถ้ายังไม่เคยตั้ง `ADMIN_CODE`)
 
-### การกำหนดบทบาทให้ผู้ใช้
-1. อีเมลใน `ADMIN_EMAILS` (Script Property) หรือ `DEFAULT_ADMIN_EMAILS` (ในโค้ด) = **admin เสมอ** (safety net กันล็อกตัวเองออก ลบผ่านหน้าเว็บไม่ได้)
-2. อีเมลอื่นดูจากแท็บ **`Users`** ในชีต (คอลัมน์ `email | role | name`, role = `admin`/`pharmacist`/`nurse`)
-3. ไม่พบในทั้งสองที่ = `nurse` (ดูอย่างเดียว) โดยอัตโนมัติ
+### 5.3 สิ่งที่ทุกคนทำได้หลังลงชื่อ
+- ค้นหา / ดูยาและกล่องยา
+- เพิ่ม / แก้ไข / ลบยาและกล่องยา
+- Export CSV / Sheet
+- จัดการหมวดหมู่ / ที่จัดเก็บ
 
-จัดการผู้ใช้ได้ 2 ทาง: ผ่านปุ่ม **👥 ผู้ใช้ / สิทธิ์** ในหน้าเว็บ (เฉพาะแอดมิน) หรือแก้แท็บ `Users` ในชีตตรงๆ
-
-> ตรวจสิทธิ์ตัวเองได้โดย Run ฟังก์ชัน `whoAmI` ใน GAS editor แล้วดู `role` / `caps` ใน Execution log
+### 5.4 สิ่งที่ต้องใช้รหัสแอดมิน
+- เปิดและบันทึกหน้า **ตั้งค่าระบบ** (LINE token, เกณฑ์วัน, เวลาแจ้งเตือน, รายชื่อผู้ใช้, เปลี่ยนรหัส)
 
 ---
 
@@ -117,4 +117,16 @@ clasp push
 
 ## 7. Trigger แจ้งเตือนอัตโนมัติ (ไม่บังคับ)
 
-รันฟังก์ชัน `createDailyTrigger()` หนึ่งครั้งใน GAS editor เพื่อตั้งแจ้งเตือน LINE ทุกวัน 08:00 น.
+- บันทึกจากหน้า **ตั้งค่า** จะตั้ง trigger `checkExpiryAndNotify` ตามชั่วโมงที่เลือกให้อัตโนมัติ
+- หรือรัน `createDailyTrigger()` ใน GAS editor ครั้งแรก (ใช้ `NOTIFY_HOUR` จาก settings)
+
+---
+
+## 8. วิธีทดสอบหลัง Deploy
+
+1. เปิดเว็บครั้งแรก → ต้องกรอกชื่อ+ตำแหน่งก่อนใช้งาน
+2. กดตั้งค่าโดยไม่ใส่รหัส / ใส่ผิด → เข้าฟอร์มไม่ได้
+3. ใส่รหัสถูก (ค่าเริ่มต้น `1234`) → ตั้งแดง 90 / เหลือง 180 / เวลา 9 ได้
+4. แก้ชื่อผู้ใช้ในหน้าตั้งค่า → รีเฟรชแล้วยังอยู่
+5. เปลี่ยนรหัสใหม่ → ใช้รหัสใหม่ได้
+6. งานยา/กล่องยายังทำได้โดยไม่ต้องใส่รหัสแอดมิน

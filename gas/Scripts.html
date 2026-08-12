@@ -5,7 +5,7 @@
     let medCatalog = [];
     let editingCode = null;
     let debounceTimer = null;
-    let appSettings = { redMonths: 4, yellowMonths: 8, hasLineToken: false };
+    let appSettings = { redDays: 90, yellowDays: 180, notifyHour: 8, hasLineToken: false };
     // ผู้ใช้จากแท็บ Users (ชื่อ + ตำแหน่ง)
     let currentUser = { email: '', name: '', position: '' };
     function getSavedUser(){ try { const s = localStorage.getItem('currentUser'); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
@@ -58,11 +58,22 @@
       return !isNaN(n) && n >= min && n <= max;
     }
     function isHighAlertDrug(item){ const f = [item['ชื่อยา'], item['ชื่อสามัญ'], item['หมวดหมู่']]; return f.some(v => { if(!v) return false; const s = v.toString(); return /\bHAD\b/i.test(s) || /high[\s-]?alert/i.test(s); }); }
-    function getExpiryInfo(dateStr){ if(!dateStr) return { status:'nodate', diffDays:null, months:null }; const d = new Date(dateStr + 'T00:00:00+07:00'); if(isNaN(d.getTime())) return { status:'nodate', diffDays:null, months:null }; const today = new Date(); today.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0); const diffDays = Math.round((d - today) / 86400000); if(diffDays < 0) return { status:'expired', diffDays, months:null }; const months = Math.floor(diffDays / 30); let status; if(months <= appSettings.redMonths) status = 'red'; else if(months <= appSettings.yellowMonths) status = 'yellow'; else status = 'green'; return { status, diffDays, months }; }
-    function expiryLabel(info){ switch(info.status){ case 'expired': return 'หมดอายุแล้ว ' + Math.abs(info.diffDays) + ' วัน'; case 'red': return 'ใกล้หมดอายุ อีก ~' + info.months + ' เดือน'; case 'yellow': return 'ใกล้หมดอายุ อีก ~' + info.months + ' เดือน'; case 'green': return 'ปกติ เหลืออีก ~' + info.months + ' เดือน'; default: return 'ไม่มีข้อมูลวันหมดอายุ'; } }
+    function getExpiryInfo(dateStr){ if(!dateStr) return { status:'nodate', diffDays:null }; const d = new Date(dateStr + 'T00:00:00+07:00'); if(isNaN(d.getTime())) return { status:'nodate', diffDays:null }; const today = new Date(); today.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0); const diffDays = Math.round((d - today) / 86400000); if(diffDays < 0) return { status:'expired', diffDays }; let status; if(diffDays <= appSettings.redDays) status = 'red'; else if(diffDays <= appSettings.yellowDays) status = 'yellow'; else status = 'green'; return { status, diffDays }; }
+    function expiryLabel(info){ switch(info.status){ case 'expired': return 'หมดอายุแล้ว ' + Math.abs(info.diffDays) + ' วัน'; case 'red': return 'ใกล้หมดอายุ อีก ' + info.diffDays + ' วัน'; case 'yellow': return 'ใกล้หมดอายุ อีก ' + info.diffDays + ' วัน'; case 'green': return 'ปกติ เหลืออีก ' + info.diffDays + ' วัน'; default: return 'ไม่มีข้อมูลวันหมดอายุ'; } }
     function showToast(msg, type){ const wrap = document.getElementById('toastWrap'); const el = document.createElement('div'); el.className = 'toast' + (type ? ' ' + type : ''); el.textContent = msg; wrap.appendChild(el); requestAnimationFrame(() => el.classList.add('show')); setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3200); }
     function setButtonLoading(btn, loadingText){ btn.dataset.originalText = btn.textContent; btn.textContent = loadingText || 'กำลังทำงาน...'; btn.disabled = true; }
     function resetButtonLoading(btn){ if(btn.dataset.originalText) btn.textContent = btn.dataset.originalText; btn.disabled = false; }
+
+    function bindModalEnter(container, buttonId, opts) {
+      if (!container) return;
+      container.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        if (e.target.tagName === 'TEXTAREA') return;
+        if (opts?.skipIfAutocomplete && document.querySelector('.autocomplete-items')) return;
+        const btn = document.getElementById(buttonId);
+        if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+      });
+    }
 
     /* ---------------------- Confirm Modal (มือถือใช้แทน confirm) ---------------------- */
     let confirmCallback = null;
@@ -87,8 +98,8 @@
 
     /* ---------------------- Show all UI (ไม่มี RBAC) ---------------------- */
     function applyUI() {
-      // แสดงทั้งหมด
-      ['menuAddMed', 'menuManageOptions', 'menuExportCsv', 'menuExportSheet', 'menuAdminSettings', 'menuManageUsers'].forEach(id => {
+      // แสดงเมนูหลัก (ซ่อนปุ่มผู้ใช้/สิทธิ์ — ไม่ใช้ RBAC อีเมลแล้ว)
+      ['menuAddMed', 'menuManageOptions', 'menuExportCsv', 'menuExportSheet', 'menuAdminSettings'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -146,7 +157,7 @@
     }
 
     /* ---------------------- สถิติ + แสดงผล (Medicine) ---------------------- */
-    function updateStats(items){ let expired=0, red=0, yellow=0, green=0; items.forEach(m => { const info = getExpiryInfo(m['วันหมดอายุ']); if(info.status === 'expired') expired++; else if(info.status === 'red') red++; else if(info.status === 'yellow') yellow++; else if(info.status === 'green') green++; }); document.getElementById('statTotal').textContent = items.length; document.getElementById('statExpired').textContent = expired; document.getElementById('statRed').textContent = red; document.getElementById('statYellow').textContent = yellow; document.getElementById('statGreen').textContent = green; document.getElementById('lblRed').textContent = `ใกล้หมด 0-${appSettings.redMonths} เดือน`; document.getElementById('lblYellow').textContent = `ใกล้หมด ${appSettings.redMonths + 1}-${appSettings.yellowMonths} เดือน`; }
+    function updateStats(items){ let expired=0, red=0, yellow=0, green=0; items.forEach(m => { const info = getExpiryInfo(m['วันหมดอายุ']); if(info.status === 'expired') expired++; else if(info.status === 'red') red++; else if(info.status === 'yellow') yellow++; else if(info.status === 'green') green++; }); document.getElementById('statTotal').textContent = items.length; document.getElementById('statExpired').textContent = expired; document.getElementById('statRed').textContent = red; document.getElementById('statYellow').textContent = yellow; document.getElementById('statGreen').textContent = green; document.getElementById('lblRed').textContent = `ใกล้หมด ≤${appSettings.redDays} วัน`; document.getElementById('lblYellow').textContent = `ใกล้หมด ${appSettings.redDays + 1}-${appSettings.yellowDays} วัน`; }
 
     function medCardHtml(item){
       const info = getExpiryInfo(item['วันหมดอายุ']);
@@ -410,57 +421,127 @@
 
     /* ---------------------- Modal: ตั้งค่าระบบ (Admin) ---------------------- */
     const adminModalOverlay = document.getElementById('adminModalOverlay');
+    const adminPinGate = document.getElementById('adminPinGate');
+    const adminFormContainer = document.getElementById('adminFormContainer');
     const adminFormError = document.getElementById('adminFormError');
-    function openAdminModal() {
-      // LINE Token ไม่ถูกส่งมาที่ frontend อีกต่อไป — แสดงเฉพาะสถานะ และให้กรอกเมื่อจะเปลี่ยนเท่านั้น
+    const adminPinError = document.getElementById('adminPinError');
+    let adminUnlockedCode = '';
+
+    function resetAdminModalState() {
+      adminUnlockedCode = '';
+      if (adminPinGate) adminPinGate.style.display = '';
+      if (adminFormContainer) adminFormContainer.style.display = 'none';
+      const pinInput = document.getElementById('adminPinInput');
+      if (pinInput) pinInput.value = '';
+      const newCodeInput = document.getElementById('setNewAdminCode');
+      if (newCodeInput) newCodeInput.value = '';
+      if (adminPinError) { adminPinError.classList.remove('show'); adminPinError.textContent = ''; }
+      if (adminFormError) { adminFormError.classList.remove('show'); adminFormError.textContent = ''; }
+    }
+
+    function fillNotifyHourSelect(selected) {
+      const sel = document.getElementById('setNotifyHour');
+      if (!sel) return;
+      sel.innerHTML = '';
+      for (let h = 0; h <= 23; h++) {
+        const opt = document.createElement('option');
+        opt.value = String(h);
+        opt.textContent = String(h).padStart(2, '0') + ':00 น.';
+        if (h === selected) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+
+    function fillAdminSettingsForm() {
       const tokenInput = document.getElementById('setLineToken');
       tokenInput.value = '';
       tokenInput.disabled = false;
       tokenInput.placeholder = appSettings.hasLineToken ? 'มี Token อยู่แล้ว — เว้นว่างถ้าไม่ต้องการเปลี่ยน' : 'วาง Token ที่นี่...';
       document.getElementById('tokenStatus').textContent = appSettings.hasLineToken ? '(ตั้งค่าไว้แล้ว)' : '(ยังไม่ได้ตั้งค่า)';
       document.getElementById('setLineTarget').value = sanitizeInput(appSettings.lineTargetId || '');
-      document.getElementById('setRedMonths').value = appSettings.redMonths || 4;
-      document.getElementById('setYellowMonths').value = appSettings.yellowMonths || 8;
-      document.getElementById('setAdminEmails').value = sanitizeInput(appSettings.adminEmails || '');
-      const warn = document.getElementById('adminOpenWarning');
-      if (!appSettings.adminEmails) {
-        warn.textContent = '⚠️ โหมดเปิดกว้าง: ยังไม่ได้กำหนดอีเมลแอดมิน ทุกคนที่เข้าถึงลิงก์สามารถแก้ไขข้อมูลได้ ควรใส่รายชื่อแอดมินเพื่อความปลอดภัย';
-        warn.style.display = 'block';
-      } else {
-        warn.style.display = 'none';
-      }
-      adminFormError.classList.remove('show');
+      document.getElementById('setRedDays').value = appSettings.redDays || 90;
+      document.getElementById('setYellowDays').value = appSettings.yellowDays || 180;
+      fillNotifyHourSelect(typeof appSettings.notifyHour === 'number' ? appSettings.notifyHour : 8);
+    }
+
+    function openAdminModal() {
+      resetAdminModalState();
       adminModalOverlay.classList.add('open');
     }
-    document.getElementById('btnAdminClose').addEventListener('click', () => adminModalOverlay.classList.remove('open'));
-    adminModalOverlay.addEventListener('click', e => { if(e.target === adminModalOverlay) adminModalOverlay.classList.remove('open'); });
+
+    function closeAdminModal() {
+      adminModalOverlay.classList.remove('open');
+      resetAdminModalState();
+    }
+
+    document.getElementById('btnAdminClose').addEventListener('click', closeAdminModal);
+    document.getElementById('btnAdminCloseForm').addEventListener('click', closeAdminModal);
+    adminModalOverlay.addEventListener('click', e => { if (e.target === adminModalOverlay) closeAdminModal(); });
+
+    document.getElementById('btnAdminUnlock').addEventListener('click', () => {
+      const code = (document.getElementById('adminPinInput').value || '').trim();
+      if (!code) {
+        adminPinError.textContent = 'กรุณาใส่รหัสแอดมิน';
+        adminPinError.classList.add('show');
+        return;
+      }
+      adminPinError.classList.remove('show');
+      const btn = document.getElementById('btnAdminUnlock');
+      setButtonLoading(btn, 'กำลังตรวจสอบ...');
+      // ใช้ saveAdminSettings ที่มีอยู่แล้วบน GAS — ไม่เรียก checkAdminCode (ฟังก์ชันใหม่อาจยังไม่ถูก deploy)
+      google.script.run.withSuccessHandler(() => {
+        resetButtonLoading(btn);
+        adminUnlockedCode = code;
+        fillAdminSettingsForm();
+        adminPinGate.style.display = 'none';
+        adminFormContainer.style.display = '';
+      }).withFailureHandler(err => {
+        resetButtonLoading(btn);
+        adminPinError.textContent = err.message || 'รหัสแอดมินไม่ถูกต้อง';
+        adminPinError.classList.add('show');
+      }).saveAdminSettings({ adminCode: code, verifyOnly: true });
+    });
+
     document.getElementById('btnAdminSave').addEventListener('click', () => {
-      const redMonths = sanitizeInput(document.getElementById('setRedMonths').value);
-      const yellowMonths = sanitizeInput(document.getElementById('setYellowMonths').value);
+      if (!adminUnlockedCode) {
+        adminFormError.textContent = 'กรุณายืนยันรหัสแอดมินก่อน';
+        adminFormError.classList.add('show');
+        return;
+      }
+
+      const redDays = sanitizeInput(document.getElementById('setRedDays').value);
+      const yellowDays = sanitizeInput(document.getElementById('setYellowDays').value);
+      const notifyHour = sanitizeInput(document.getElementById('setNotifyHour').value);
       const lineTarget = sanitizeInput(document.getElementById('setLineTarget').value);
       const lineToken = document.getElementById('setLineToken').value.trim();
-      const adminEmails = sanitizeInput(document.getElementById('setAdminEmails').value);
+      const newAdminCode = (document.getElementById('setNewAdminCode').value || '').trim();
 
-      if (!validateNumber(redMonths, 1, 12)) {
-        adminFormError.textContent = 'เดือนแดงต้องเป็นตัวเลข 1-12';
+      if (!validateNumber(redDays, 1, 730)) {
+        adminFormError.textContent = 'วันแดงต้องเป็นตัวเลข 1-730';
         adminFormError.classList.add('show');
         return;
       }
 
-      if (!validateNumber(yellowMonths, 1, 24)) {
-        adminFormError.textContent = 'เดือนเหลืองต้องเป็นตัวเลข 1-24';
+      if (!validateNumber(yellowDays, 1, 1095)) {
+        adminFormError.textContent = 'วันเหลืองต้องเป็นตัวเลข 1-1095';
         adminFormError.classList.add('show');
         return;
       }
 
-      if (parseInt(yellowMonths) <= parseInt(redMonths)) {
-        adminFormError.textContent = 'ค่าเดือนเหลือง ต้องมากกว่า ค่าเดือนแดงเสมอ';
+      if (parseInt(yellowDays) <= parseInt(redDays)) {
+        adminFormError.textContent = 'ค่าวันเหลือง ต้องมากกว่า ค่าวันแดงเสมอ';
         adminFormError.classList.add('show');
         return;
       }
 
-      if (adminEmails && !adminEmails.split(',').every(e => validateEmail(e.trim()))) {
-        adminFormError.textContent = 'รูปแบบอีเมลไม่ถูกต้อง';
+      if (!validateNumber(notifyHour, 0, 23)) {
+        adminFormError.textContent = 'เวลาส่ง LINE ต้องเป็นชั่วโมง 0-23';
+        adminFormError.classList.add('show');
+        return;
+      }
+
+      if (newAdminCode && newAdminCode.length < 4) {
+        adminFormError.textContent = 'รหัสแอดมินใหม่ต้องมีอย่างน้อย 4 ตัวอักษร';
         adminFormError.classList.add('show');
         return;
       }
@@ -469,18 +550,21 @@
       const btn = document.getElementById('btnAdminSave');
       setButtonLoading(btn, 'กำลังบันทึก...');
       const data = {
+        adminCode: adminUnlockedCode,
         lineTargetId: lineTarget,
-        redMonths: parseInt(redMonths) || 4,
-        yellowMonths: parseInt(yellowMonths) || 8,
-        adminEmails: adminEmails
+        redDays: parseInt(redDays) || 90,
+        yellowDays: parseInt(yellowDays) || 180,
+        notifyHour: parseInt(notifyHour) || 8
       };
-      // ส่ง lineToken เฉพาะเมื่อผู้ใช้กรอกค่าใหม่เท่านั้น (เว้นว่าง = คงค่าเดิม)
       if (lineToken) data.lineToken = lineToken;
+      if (newAdminCode) data.newAdminCode = newAdminCode;
+
       google.script.run.withSuccessHandler(res => {
         resetButtonLoading(btn);
         appSettings = res.settings;
+        if (newAdminCode) adminUnlockedCode = newAdminCode;
         applyFilters();
-        adminModalOverlay.classList.remove('open');
+        closeAdminModal();
         showToast('บันทึกการตั้งค่าระบบสำเร็จ', 'success');
       }).withFailureHandler(err => {
         resetButtonLoading(btn);
@@ -603,9 +687,14 @@
       boxResults.innerHTML = finalFiltered.map(boxCardHtml).join('');
     });
 
-    // Create Box Modal
+    // Create / Edit Box Modal
     const boxFormModalOverlay = document.getElementById('boxFormModalOverlay');
+    let editingBoxId = null;
+    const actorLabel = () => currentUser.name || currentUser.email || 'Admin';
+    const actorPosition = () => currentUser.position || '';
+
     document.getElementById('btnCreateBox').addEventListener('click', () => {
+      editingBoxId = null;
       document.getElementById('boxFormTitle').textContent = 'สร้างกล่องยาใหม่';
       document.getElementById('fBoxNo').value = '';
       document.getElementById('fHomeDept').value = '';
@@ -615,7 +704,10 @@
       populateFormOptions();
       boxFormModalOverlay.classList.add('open');
     });
-    document.getElementById('btnBoxFormCancel').addEventListener('click', () => boxFormModalOverlay.classList.remove('open'));
+    document.getElementById('btnBoxFormCancel').addEventListener('click', () => {
+      editingBoxId = null;
+      boxFormModalOverlay.classList.remove('open');
+    });
     document.getElementById('btnBoxFormSave').addEventListener('click', () => {
       const boxNo = sanitizeInput(document.getElementById('fBoxNo').value);
       const homeDept = sanitizeInput(document.getElementById('fHomeDept').value);
@@ -641,11 +733,23 @@
         notes: notes
       };
 
+      if (editingBoxId) {
+        const id = editingBoxId;
+        google.script.run.withSuccessHandler(res => {
+          showToast('แก้ไขกล่องยาสำเร็จ', 'success');
+          editingBoxId = null;
+          boxFormModalOverlay.classList.remove('open');
+          openBoxDetailModal(id);
+          loadBoxes();
+        }).withFailureHandler(err => showToast('แก้ไขไม่สำเร็จ: ' + (err.message || err), 'error')).updateBoxDetails(id, payload, actorLabel(), actorPosition());
+        return;
+      }
+
       google.script.run.withSuccessHandler(res => {
         showToast('สร้างกล่องยาสำเร็จ', 'success');
         boxFormModalOverlay.classList.remove('open');
         loadBoxes();
-      }).withFailureHandler(err => showToast('สร้างไม่สำเร็จ: ' + (err.message || err), 'error')).createBox(payload, currentUser.email || 'Admin');
+      }).withFailureHandler(err => showToast('สร้างไม่สำเร็จ: ' + (err.message || err), 'error')).createBox(payload, actorLabel(), actorPosition());
     });
 
     // Box Detail Modal
@@ -657,12 +761,14 @@
       google.script.run.withSuccessHandler(data => {
         currentBoxData = data;
         document.getElementById('boxDetailTitle').textContent = `กล่องยา: ${data.box.boxNo}`;
+        document.getElementById('fBoxDetailNo').value = data.box.boxNo || '';
         document.getElementById('fBoxDetailDept').innerHTML = '<option value="">-- เลือก --</option>' + options.locations.map(l => `<option value="${escapeHtml(l)}" ${l === data.box.department ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('');
         document.getElementById('boxExpDate').textContent = data.box.expiryDate || 'ไม่ระบุ';
 
         // แสดงปุ่มจัดการกล่องยาให้ทุกคน
-        ['btnChangeDept','btnAddBoxItem','btnDeleteBox'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+        ['btnChangeDept','btnSaveBoxNo','btnEditBox','btnAddBoxItem','btnDeleteBox'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
         document.getElementById('fBoxDetailDept').disabled = false;
+        document.getElementById('fBoxDetailNo').disabled = false;
 
         renderBoxItems(data.items);
         renderBoxHistory(data.history);
@@ -698,12 +804,36 @@
     }
 
     function renderBoxHistory(history) {
+      const summaryEl = document.getElementById('boxEditorsSummary');
       const listEl = document.getElementById('boxHistoryList');
-      if (!history || history.length === 0) {
+      const rows = history || [];
+
+      if (summaryEl) {
+        if (!rows.length) {
+          summaryEl.innerHTML = '';
+        } else {
+          const map = {};
+          rows.forEach(h => {
+            const name = String(h.user || '').trim() || 'ไม่ระบุ';
+            if (!map[name]) map[name] = { name: name, count: 0 };
+            map[name].count += 1;
+          });
+          const editors = Object.keys(map).map(k => map[k]).sort((a, b) => b.count - a.count);
+          summaryEl.innerHTML = `
+            <div style="background:rgba(0,0,0,0.03); border:1px solid var(--mac-border); border-radius:12px; padding:10px 12px;">
+              <div style="font-size:0.85rem; font-weight:600; margin-bottom:8px;">ผู้ที่เคยแก้ไขกล่องนี้ (${editors.length} คน)</div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                ${editors.map(ed => `<span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; background:#fff; border:1px solid var(--mac-border); font-size:0.82rem;">👤 ${escapeHtml(ed.name)} <span style="color:var(--mac-muted);">×${ed.count}</span></span>`).join('')}
+              </div>
+            </div>`;
+        }
+      }
+
+      if (!rows.length) {
         listEl.innerHTML = `<div class="empty-state" style="padding:20px;"><div>ไม่มีประวัติการเคลื่อนย้าย</div></div>`;
         return;
       }
-      listEl.innerHTML = history.slice().reverse().map(h => {
+      listEl.innerHTML = rows.slice().reverse().map(h => {
         const actionType = escapeHtml(String(h.actionType || ''));
         const notes = escapeHtml(String(h.notes || ''));
         const timestamp = escapeHtml(String(h.timestamp || ''));
@@ -727,17 +857,124 @@
       }).join('');
     }
 
+    // Admin: รายชื่อผู้แก้ไขทั้งระบบ
+    const boxEditorsModalOverlay = document.getElementById('boxEditorsModalOverlay');
+    function renderEditorsReport(data) {
+      const editors = (data && data.editors) || [];
+      const recent = (data && data.recent) || [];
+      const peoplePane = document.getElementById('editorsPeoplePane');
+      const recentPane = document.getElementById('editorsRecentPane');
+
+      if (!editors.length) {
+        peoplePane.innerHTML = `<div class="empty-state" style="padding:20px;"><div>ยังไม่มีประวัติผู้แก้ไข</div></div>`;
+      } else {
+        peoplePane.innerHTML = editors.map(ed => `
+          <div class="med-card exp-green" style="border-top:3px solid var(--mac-green); margin-bottom:8px;">
+            <div class="med-main">
+              <div class="med-name">👤 ${escapeHtml(ed.name)}</div>
+              <div class="med-sub">แก้ ${escapeHtml(String(ed.count))} ครั้ง · เกี่ยวข้อง ${escapeHtml(String(ed.boxCount))} กล่อง${ed.boxes && ed.boxes.length ? ' (' + escapeHtml(ed.boxes.slice(0, 8).join(', ')) + (ed.boxes.length > 8 ? '…' : '') + ')' : ''}</div>
+            </div>
+            <div class="med-side">
+              <div style="font-size:0.8rem; color:var(--mac-muted); text-align:right;">
+                <div>ล่าสุด: ${escapeHtml(ed.lastAt || '-')}</div>
+                <div>${escapeHtml(ed.lastAction || '-')}</div>
+                <div>กล่อง: ${escapeHtml(ed.lastBoxNo || '-')}</div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      if (!recent.length) {
+        recentPane.innerHTML = `<div class="empty-state" style="padding:20px;"><div>ยังไม่มีกิจกรรม</div></div>`;
+      } else {
+        recentPane.innerHTML = recent.map(r => `
+          <div class="med-card exp-green" style="border-top:3px solid var(--mac-muted); margin-bottom:8px;">
+            <div class="med-main">
+              <div class="med-name">${escapeHtml(r.actionType || '-')}</div>
+              <div class="med-sub">${escapeHtml(r.notes || '')}</div>
+            </div>
+            <div class="med-side">
+              <div style="font-size:0.8rem; color:var(--mac-muted); text-align:right;">
+                <div>${escapeHtml(r.timestamp || '-')}</div>
+                <div>โดย: ${escapeHtml(r.user || '-')}</div>
+                <div>กล่อง: ${escapeHtml(r.boxNo || '-')}</div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function openBoxEditorsModal() {
+      const peoplePane = document.getElementById('editorsPeoplePane');
+      peoplePane.innerHTML = `<div class="loading-state" style="padding:24px;"><div>กำลังโหลดรายชื่อผู้แก้ไข...</div></div>`;
+      document.getElementById('editorsRecentPane').style.display = 'none';
+      peoplePane.style.display = '';
+      document.querySelectorAll('#editorsModalTabs .modal-tab').forEach(t => t.classList.toggle('active', t.dataset.editorsTab === 'people'));
+      boxEditorsModalOverlay.classList.add('open');
+      google.script.run.withSuccessHandler(renderEditorsReport)
+        .withFailureHandler(err => {
+          peoplePane.innerHTML = `<div class="empty-state" style="padding:20px; color:var(--mac-red);"><div>โหลดไม่สำเร็จ: ${escapeHtml(err.message || err)}</div></div>`;
+        }).getBoxEditorsReport();
+    }
+
+    document.getElementById('btnBoxEditors')?.addEventListener('click', openBoxEditorsModal);
+    document.getElementById('btnBoxEditorsClose')?.addEventListener('click', () => boxEditorsModalOverlay.classList.remove('open'));
+    document.getElementById('btnBoxEditorsRefresh')?.addEventListener('click', openBoxEditorsModal);
+    boxEditorsModalOverlay?.addEventListener('click', e => { if (e.target === boxEditorsModalOverlay) boxEditorsModalOverlay.classList.remove('open'); });
+    document.querySelectorAll('#editorsModalTabs .modal-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('#editorsModalTabs .modal-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const isPeople = tab.dataset.editorsTab === 'people';
+        document.getElementById('editorsPeoplePane').style.display = isPeople ? '' : 'none';
+        document.getElementById('editorsRecentPane').style.display = isPeople ? 'none' : '';
+      });
+    });
+
     // Modal Tabs
     document.querySelectorAll('.modal-tab').forEach(tab => {
+      if (tab.closest('#editorsModalTabs')) return;
       tab.addEventListener('click', () => {
-        document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        const root = tab.closest('.modal-content-area') || document;
+        root.querySelectorAll('.modal-tab').forEach(t => {
+          if (t.closest('#editorsModalTabs')) return;
+          t.classList.remove('active');
+        });
+        root.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         tab.classList.add('active');
-        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        const pane = document.getElementById('tab-' + tab.dataset.tab);
+        if (pane) pane.classList.add('active');
       });
     });
 
     document.getElementById('btnBoxDetailClose').addEventListener('click', () => boxDetailModalOverlay.classList.remove('open'));
+
+    document.getElementById('btnSaveBoxNo').addEventListener('click', () => {
+      const boxNo = sanitizeInput(document.getElementById('fBoxDetailNo').value);
+      if (!boxNo || !boxNo.trim()) { showToast('กรุณาระบุหมายเลข/ชื่อกล่อง', 'error'); return; }
+      google.script.run.withSuccessHandler(res => {
+        showToast('บันทึกชื่อกล่องสำเร็จ', 'success');
+        openBoxDetailModal(currentBoxId);
+        loadBoxes();
+      }).withFailureHandler(err => showToast('บันทึกชื่อไม่สำเร็จ: ' + (err.message || err), 'error')).updateBoxDetails(currentBoxId, { boxNo: boxNo }, actorLabel(), actorPosition());
+    });
+
+    document.getElementById('btnEditBox').addEventListener('click', () => {
+      if (!currentBoxData || !currentBoxData.box) { showToast('ยังไม่มีข้อมูลกล่อง', 'error'); return; }
+      const box = currentBoxData.box;
+      editingBoxId = currentBoxId;
+      document.getElementById('boxFormTitle').textContent = 'แก้ไขกล่องยา';
+      populateFormOptions();
+      document.getElementById('fBoxNo').value = box.boxNo || '';
+      document.getElementById('fHomeDept').value = box.homeDepartment || '';
+      document.getElementById('fDept').value = box.department || '';
+      document.getElementById('fAlertDays').value = box.alertDaysBefore || 30;
+      document.getElementById('fBoxNotes').value = box.notes || '';
+      boxDetailModalOverlay.classList.remove('open');
+      boxFormModalOverlay.classList.add('open');
+    });
 
     document.getElementById('btnChangeDept').addEventListener('click', () => {
       const newDept = document.getElementById('fBoxDetailDept').value;
@@ -746,7 +983,7 @@
         showToast('ย้ายแผนกสำเร็จ', 'success');
         openBoxDetailModal(currentBoxId);
         loadBoxes();
-      }).withFailureHandler(err => showToast('ย้ายแผนกไม่สำเร็จ: ' + (err.message || err), 'error')).updateBoxDetails(currentBoxId, { department: newDept }, currentUser.email || 'Admin');
+      }).withFailureHandler(err => showToast('ย้ายแผนกไม่สำเร็จ: ' + (err.message || err), 'error')).updateBoxDetails(currentBoxId, { department: newDept }, actorLabel(), actorPosition());
     });
 
     document.getElementById('btnDeleteBox').addEventListener('click', () => {
@@ -893,8 +1130,225 @@
     });
 
     document.getElementById('btnPrintLabel').addEventListener('click', () => {
-      showToast('ฟังก์ชันพิมพ์ฉลากกำลังพัฒนา', 'error');
+      if (!currentBoxId) { showToast('ยังไม่ได้เลือกกล่อง', 'error'); return; }
+      const btn = document.getElementById('btnPrintLabel');
+      setButtonLoading(btn, 'กำลังสร้างสติ๊กเกอร์...');
+      google.script.run.withSuccessHandler(data => {
+        resetButtonLoading(btn);
+        openBoxQrPrint(data);
+      }).withFailureHandler(err => {
+        resetButtonLoading(btn);
+        showToast('สร้างสติ๊กเกอร์ไม่สำเร็จ: ' + (err.message || err), 'error');
+      }).getBoxLabelData(currentBoxId);
     });
+
+    // ขนาดฉลาก Godex — ค่าเริ่มต้น 8.5×6.1 ซม. (85×61 มม.)
+    const GODEX_LABEL_PRESETS = [
+      { id: '85x61', w: 85, h: 61, label: '8.5×6.1 ซม. (มาตรฐาน)' },
+      { id: '50x30', w: 50, h: 30, label: '5.0×3.0 ซม.' },
+      { id: '60x40', w: 60, h: 40, label: '6.0×4.0 ซม.' },
+      { id: '50x50', w: 50, h: 50, label: '5.0×5.0 ซม.' },
+      { id: '70x50', w: 70, h: 50, label: '7.0×5.0 ซม.' }
+    ];
+    function getSavedGodexSizeId() {
+      try { return localStorage.getItem('godexLabelSize') || '85x61'; } catch (e) { return '85x61'; }
+    }
+    function saveGodexSizeId(id) {
+      try { localStorage.setItem('godexLabelSize', id); } catch (e) {}
+    }
+    function getGodexPreset(id) {
+      return GODEX_LABEL_PRESETS.find(p => p.id === id) || GODEX_LABEL_PRESETS[0];
+    }
+    function getSavedGodexOffset() {
+      try {
+        return {
+          x: parseFloat(localStorage.getItem('godexOffsetX') || '0') || 0,
+          y: parseFloat(localStorage.getItem('godexOffsetY') || '0') || 0
+        };
+      } catch (e) { return { x: 0, y: 0 }; }
+    }
+    function saveGodexOffset(x, y) {
+      try {
+        localStorage.setItem('godexOffsetX', String(x));
+        localStorage.setItem('godexOffsetY', String(y));
+      } catch (e) {}
+    }
+
+    function buildGodexEzpl(data, preset) {
+      const dpi = 8; // 203 DPI
+      const wMm = preset.w, hMm = preset.h, gapMm = 3;
+      const url = String(data.scanUrl || '');
+      const boxNo = String(data.boxNo || '').replace(/[\r\n,]/g, ' ').substring(0, 28);
+      const dept = String(data.department || '-').replace(/[\r\n,]/g, ' ').substring(0, 28);
+      const status = String(data.status || '').replace(/[\r\n,]/g, ' ').substring(0, 20);
+      const count = String(data.itemCount || 0);
+      const urlLen = unescape(encodeURIComponent(url)).length;
+      const off = getSavedGodexOffset();
+      const ox = Math.round(off.x * dpi);
+      const oy = Math.round(off.y * dpi);
+
+      // 8.5×6.1: ข้อความซ้าย / QR ขวา — margin ~2–3 มม. QR ~40 มม.
+      const landscape = wMm >= hMm;
+      let qrX, qrY, qrMul, textLines;
+      if (landscape) {
+        qrMul = (preset.id === '85x61')
+          ? 5
+          : Math.max(3, Math.min(6, Math.floor((hMm - 12) * dpi / 33)));
+        const qrSize = 33 * qrMul;
+        const margin = Math.round(2.5 * dpi);
+        qrX = Math.max(margin, (wMm * dpi) - qrSize - margin) + ox;
+        qrY = Math.max(margin, Math.floor(((hMm * dpi) - qrSize) / 2)) + oy;
+        const tx = 16 + ox;
+        textLines = [
+          'AD,' + tx + ',' + (Math.floor(hMm * dpi * 0.18) + oy) + ',1,1,0,0,BOX ' + boxNo,
+          'AB,' + tx + ',' + (Math.floor(hMm * dpi * 0.40) + oy) + ',1,1,0,0,Dept: ' + dept,
+          'AB,' + tx + ',' + (Math.floor(hMm * dpi * 0.56) + oy) + ',1,1,0,0,' + status + ' / ' + count + ' items',
+          'AB,' + tx + ',' + (Math.floor(hMm * dpi * 0.72) + oy) + ',1,1,0,0,Scan QR for meds'
+        ];
+      } else {
+        qrMul = Math.max(3, Math.min(6, Math.floor((Math.min(wMm, hMm) - 14) * dpi / 33)));
+        const qrSize = 33 * qrMul;
+        qrX = Math.max(16, Math.floor(((wMm * dpi) - qrSize) / 2)) + ox;
+        qrY = Math.floor(hMm * dpi * 0.30) + oy;
+        textLines = [
+          'AD,' + (12 + ox) + ',' + (16 + oy) + ',1,1,0,0,BOX ' + boxNo,
+          'AB,' + (12 + ox) + ',' + (46 + oy) + ',1,1,0,0,' + dept,
+          'AB,' + (12 + ox) + ',' + (Math.min(hMm * dpi - 18, qrY + qrSize + 10)) + ',1,1,0,0,Scan QR'
+        ];
+      }
+      return ['^Q' + hMm + ',' + gapMm, '^W' + wMm, '^H12', '^S4', '^P1', '^AT', '^L']
+        .concat(textLines)
+        .concat(['W' + qrX + ',' + qrY + ',3,2,M,8,' + qrMul + ',' + urlLen + ',0', url, 'E'])
+        .join('\r\n');
+    }
+    window.__downloadGodexEzpl = function(data, sizeId) {
+      const preset = getGodexPreset(sizeId);
+      const ezpl = buildGodexEzpl(data, preset);
+      const blob = new Blob([ezpl], { type: 'application/octet-stream' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'godex-box-' + String(data.boxNo || 'label').replace(/[^\w\-]+/g, '_') + '-' + preset.id + '.prn';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      showToast('ดาวน์โหลดไฟล์ Godex .prn แล้ว', 'success');
+    };
+
+    function openBoxQrPrint(data) {
+      const scanUrl = data.scanUrl || '';
+      const initialId = getSavedGodexSizeId();
+      const initialOff = getSavedGodexOffset();
+      const qrImg = 'https://api.qrserver.com/v1/create-qr-code/?size=480x480&margin=2&ecc=M&color=000000&bgcolor=FFFFFF&data=' + encodeURIComponent(scanUrl);
+      const payload = {
+        boxNo: data.boxNo || '',
+        department: data.department || '',
+        status: data.status || '',
+        itemCount: data.itemCount || 0,
+        scanUrl: scanUrl
+      };
+      const presetOpts = GODEX_LABEL_PRESETS.map(p =>
+        '<option value="' + p.id + '"' + (p.id === initialId ? ' selected' : '') + '>' + p.label + '</option>'
+      ).join('');
+
+      const html = [
+        '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>Godex 8.5x6.1</title><style>',
+        'html,body{margin:0;padding:0}',
+        '*{box-sizing:border-box}body{font-family:Tahoma,"Sarabun",Arial,sans-serif;background:#ececec;color:#000}',
+        '.bar{position:sticky;top:0;z-index:5;background:#111;color:#fff;padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
+        '.bar select,.bar button,.bar input{font:inherit;font-size:13px;padding:7px 10px;border:0;border-radius:6px}',
+        '.bar input[type=number]{width:64px}',
+        '.bar .p{background:#fff;color:#111;font-weight:700;cursor:pointer}.bar .g{background:#333;color:#fff;cursor:pointer}',
+        '.tip{margin:10px 12px 0;padding:10px 12px;background:#fff8e1;border:1px solid #f0c36d;border-radius:8px;font-size:12px;line-height:1.45;color:#5c4400}',
+        '.stage{padding:16px;display:flex;justify-content:center;position:relative}',
+        '.label{background:#fff;border:1px dashed #999;display:flex;flex-direction:row;align-items:center;text-align:left;overflow:hidden;gap:2mm}',
+        '.label.stack{flex-direction:column;text-align:center;gap:1mm}',
+        '.textcol{flex:1;min-width:0;padding-right:1mm}',
+        '.brand{font-size:8pt;font-weight:700;letter-spacing:.04em;margin:0}',
+        '.boxno{font-size:15pt;font-weight:800;margin:.5mm 0;line-height:1.1;word-break:break-word}',
+        '.sub{font-size:8.5pt;margin:.4mm 0;line-height:1.2;font-weight:600}',
+        '.scan{font-size:8pt;font-weight:700;margin-top:1mm}',
+        '.qr{image-rendering:pixelated;background:#fff;flex:0 0 auto;display:block}',
+        '@media print{',
+        '  html,body{width:100%;height:100%;margin:0!important;padding:0!important;background:#fff!important}',
+        '  .bar,.tip{display:none!important}',
+        '  .stage{padding:0!important;margin:0!important;width:100%;height:100%;position:relative}',
+        '  .label{position:absolute;top:0;left:0;border:0!important;box-shadow:none!important;background:#fff}',
+        '}',
+        '</style></head><body>',
+        '<div class="bar">',
+        '<label>ขนาด</label>',
+        '<select id="sizeSel">' + presetOpts + '</select>',
+        '<label>X มม.</label>',
+        '<input id="offX" type="number" step="0.5" value="' + initialOff.x + '">',
+        '<label>Y มม.</label>',
+        '<input id="offY" type="number" step="0.5" value="' + initialOff.y + '">',
+        '<button class="p" id="btnPrint" type="button">พิมพ์ Godex</button>',
+        '<button class="g" id="btnEzpl" type="button">ดาวน์โหลด .prn</button>',
+        '</div>',
+        '<div class="tip">ขนาดมาตรฐาน: <b>8.5 × 6.1 ซม. (85×61 มม.)</b><br>',
+        'ไดรเวอร์ Godex: กระดาษ 85×61 มม., Scale 100%, ปิด Fit to page<br>',
+        'ถ้าเลื่อน: ปรับ X/Y ทีละ 0.5–1 มม. (บวก = ขวา/ลง)</div>',
+        '<div class="stage"><div class="label" id="label"><div class="textcol">',
+        '<div class="brand">RXEBOX</div><div class="boxno" id="boxNoText"></div>',
+        '<div class="sub" id="deptText"></div><div class="sub" id="metaText"></div>',
+        '<div class="scan" id="scanText">สแกนเพื่อดูรายการยา</div></div>',
+        '<img class="qr" id="qrImg" src="' + qrImg + '" alt="QR"></div></div>',
+        '<script>',
+        'var DATA=' + JSON.stringify(payload) + ';',
+        'var PRESETS=' + JSON.stringify(GODEX_LABEL_PRESETS) + ';',
+        'var label=document.getElementById("label");',
+        'var sizeSel=document.getElementById("sizeSel");',
+        'var qrImg=document.getElementById("qrImg");',
+        'var offX=document.getElementById("offX");',
+        'var offY=document.getElementById("offY");',
+        'function readOff(){return {x:parseFloat(offX.value)||0,y:parseFloat(offY.value)||0};}',
+        'function saveOff(){var o=readOff(); try{localStorage.setItem("godexOffsetX",String(o.x));localStorage.setItem("godexOffsetY",String(o.y));}catch(e){}}',
+        'function applySize(){',
+        'var p=PRESETS.find(function(x){return x.id===sizeSel.value})||PRESETS[0];',
+        'try{localStorage.setItem("godexLabelSize",p.id)}catch(e){}',
+        'saveOff();',
+        'var o=readOff();',
+        'var row=p.w>=p.h; label.className="label"+(row?"":" stack");',
+        'label.style.width=p.w+"mm"; label.style.height=p.h+"mm";',
+        'label.style.padding=(p.id==="85x61")?"1.8mm 2mm":"1.5mm";',
+        'label.style.transform="translate("+o.x+"mm,"+o.y+"mm)";',
+        'var qrMm;',
+        'if(p.id==="85x61"){ qrMm=41; }',
+        'else if(row){ qrMm=Math.max(18,Math.min(p.h-8, Math.floor(p.w*0.42))); }',
+        'else { qrMm=Math.max(18,Math.min(p.w-8, Math.floor(p.h*0.50))); }',
+        'qrImg.style.width=qrMm+"mm"; qrImg.style.height=qrMm+"mm";',
+        'var brand=document.querySelector(".brand"), boxno=document.querySelector(".boxno"), subs=document.querySelectorAll(".sub"), scan=document.getElementById("scanText");',
+        'if(p.id==="85x61"){ brand.style.fontSize="8pt"; boxno.style.fontSize="15pt"; for(var i=0;i<subs.length;i++) subs[i].style.fontSize="8.5pt"; scan.style.fontSize="8pt"; }',
+        'else if(p.h<=35){ brand.style.fontSize="7pt"; boxno.style.fontSize="11pt"; for(var j=0;j<subs.length;j++) subs[j].style.fontSize="7pt"; scan.style.fontSize="7pt"; }',
+        'else { brand.style.fontSize="8pt"; boxno.style.fontSize="13pt"; for(var k=0;k<subs.length;k++) subs[k].style.fontSize="8pt"; scan.style.fontSize="8pt"; }',
+        'document.getElementById("boxNoText").textContent=DATA.boxNo||"-";',
+        'document.getElementById("deptText").textContent="แผนก: "+(DATA.department||"-");',
+        'document.getElementById("metaText").textContent=(DATA.status||"-")+" · ยา "+(DATA.itemCount||0)+" รายการ";',
+        'scan.style.display=(p.h<34&&!row)?"none":"";',
+        'var ps=document.getElementById("pageStyle"); if(!ps){ps=document.createElement("style");ps.id="pageStyle";document.head.appendChild(ps);}',
+        'ps.textContent="@page{size:"+p.w+"mm "+p.h+"mm;margin:0}";',
+        '}',
+        'sizeSel.addEventListener("change",applySize);',
+        'offX.addEventListener("change",applySize);',
+        'offY.addEventListener("change",applySize);',
+        'document.getElementById("btnPrint").onclick=function(){saveOff();window.print()};',
+        'document.getElementById("btnEzpl").onclick=function(){',
+        'saveOff();',
+        'if(window.opener&&window.opener.__downloadGodexEzpl){window.opener.__downloadGodexEzpl(DATA,sizeSel.value);}',
+        'else{alert("เปิดจากหน้าเว็บหลักเพื่อดาวน์โหลด .prn");}',
+        '};',
+        'applySize();',
+        '<\/script></body></html>'
+      ].join('');
+
+      const w = window.open('', '_blank', 'width=640,height=720');
+      if (!w) { showToast('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต popup แล้วลองใหม่', 'error'); return; }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      saveGodexSizeId(initialId);
+    }
 
     /* ---------------------- Login Modal ---------------------- */
     function openLoginModal() {
@@ -941,6 +1395,15 @@
         }
       }).withFailureHandler(err => showToast('เกิดข้อผิดพลาด: ' + (err.message || err), 'error')).saveUserInfo(userId, name, position);
     });
+
+    /* ---------------------- Enter ใน modal ---------------------- */
+    bindModalEnter(document.getElementById('loginModalOverlay'), 'btnLoginSubmit');
+    bindModalEnter(document.getElementById('adminPinGate'), 'btnAdminUnlock');
+    bindModalEnter(document.getElementById('adminFormContainer'), 'btnAdminSave');
+    bindModalEnter(document.getElementById('medModalOverlay'), 'btnMedSave', { skipIfAutocomplete: true });
+    bindModalEnter(document.getElementById('boxFormModalOverlay'), 'btnBoxFormSave');
+    bindModalEnter(document.getElementById('boxItemFormModalOverlay'), 'btnBoxItemFormSave');
+    bindModalEnter(document.getElementById('confirmModalOverlay'), 'btnConfirmOk');
 
     /* ---------------------- เริ่มต้นโหลดข้อมูล ---------------------- */
     reloadAll();

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
+  <title>รายการยาในกล่อง</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f0fdfa;
+      --card: #ffffff;
+      --ink: #134e4a;
+      --muted: #5f7c78;
+      --line: #ccfbf1;
+      --accent: #0f766e;
+      --warn: #b45309;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Sarabun', system-ui, sans-serif;
+      background: linear-gradient(180deg, #ccfbf1 0%, var(--bg) 180px, #f8fafc 100%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 520px; margin: 0 auto; padding: 20px 16px 48px; }
+    .hero, .panel, .item {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(15, 118, 110, 0.06);
+    }
+    .hero { padding: 16px; }
+    .eyebrow { font-size: 0.8rem; color: var(--muted); margin: 0 0 4px; }
+    h1 { margin: 0; font-size: 1.4rem; line-height: 1.25; }
+    .meta { margin-top: 10px; display: grid; gap: 4px; font-size: 0.92rem; color: var(--muted); }
+    .meta strong { color: var(--ink); }
+    .status {
+      display: inline-block; margin-top: 10px; padding: 4px 10px; border-radius: 999px;
+      background: #ecfdf5; color: var(--accent); font-size: 0.85rem; font-weight: 600;
+    }
+    .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    h2 { margin: 20px 0 10px; font-size: 1.05rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .item { padding: 12px; margin-bottom: 8px; }
+    .item-name { font-weight: 700; font-size: 1.02rem; }
+    .item-sub { margin-top: 4px; color: var(--muted); font-size: 0.88rem; }
+    .item-actions { margin-top: 10px; display: flex; gap: 8px; }
+    .exp-ok { color: var(--accent); }
+    .exp-warn { color: var(--warn); font-weight: 600; }
+    .exp-bad { color: var(--danger); font-weight: 700; }
+    .empty, .error, .loading { text-align: center; padding: 28px 12px; color: var(--muted); }
+    .error { color: var(--danger); }
+    .foot { margin-top: 20px; text-align: center; font-size: 0.8rem; color: var(--muted); }
+    .btn {
+      border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 600;
+      cursor: pointer; background: var(--accent); color: #fff;
+    }
+    .btn:disabled { opacity: 0.6; }
+    .btn-outline { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
+    .btn-danger { background: var(--danger); }
+    .btn-sm { padding: 7px 10px; font-size: 0.85rem; }
+    .toast-wrap { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 40; display: grid; gap: 8px; }
+    .toast { background: #134e4a; color: #fff; padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; }
+    .toast.err { background: var(--danger); }
+    .modal {
+      display: none; position: fixed; inset: 0; z-index: 30; background: rgba(15, 23, 42, 0.45);
+      padding: 20px 12px; overflow: auto;
+    }
+    .modal.open { display: block; }
+    .panel { max-width: 440px; margin: 10vh auto 0; padding: 16px; }
+    .panel h3 { margin: 0 0 12px; font-size: 1.1rem; }
+    .field { margin-bottom: 10px; }
+    .field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+    .field input {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+      font: inherit; background: #fff;
+    }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="loading" class="loading">กำลังโหลดรายการยา...</div>
+    <div id="error" class="error" style="display:none;"></div>
+    <div id="content" style="display:none;">
+      <div class="hero">
+        <p class="eyebrow">🚑 กล่องยาฉุกเฉิน · เฉพาะกล่องนี้</p>
+        <h1 id="boxNo">-</h1>
+        <div class="meta">
+          <div>แผนกปัจจุบัน: <strong id="department">-</strong></div>
+          <div>แผนกประจำ: <strong id="homeDepartment">-</strong></div>
+          <div>วันหมดอายุใกล้สุด: <strong id="expiryDate">-</strong></div>
+        </div>
+        <div class="status" id="status">-</div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-outline btn-sm" id="btnEditBoxNo">✏️ แก้ชื่อกล่อง</button>
+        </div>
+      </div>
+
+      <h2>
+        <span>รายการยา (<span id="itemCount">0</span>)</span>
+        <button type="button" class="btn btn-sm" id="btnAddItem">➕ เพิ่มยา</button>
+      </h2>
+      <div id="items"></div>
+      <p class="foot">สแกนจากฉลาก QR ของกล่องนี้เท่านั้น · ไม่แสดงกล่องอื่น</p>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toastWrap"></div>
+
+  <div class="modal" id="boxModal">
+    <div class="panel">
+      <h3>แก้ชื่อกล่อง</h3>
+      <div class="field"><label>หมายเลข/ชื่อกล่อง *</label><input id="fBoxNo" type="text" maxlength="80"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="boxModal">ยกเลิก</button>
+        <button type="button" class="btn" id="btnSaveBoxNo">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="itemModal">
+    <div class="panel">
+      <h3 id="itemModalTitle">เพิ่มยา</h3>
+      <div class="field"><label>ชื่อยา *</label><input id="fDrugName" type="text" maxlength="200"></div>
+      <div class="field"><label>หน่วย</label><input id="fUnit" type="text" maxlength="40" placeholder="เช่น amp, tab"></div>
+      <div class="field"><label>จำนวน</label><input id="fQty" type="text" maxlength="40"></div>
+      <div class="field"><label>วันหมดอายุ</label><input id="fExpiry" type="date"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="itemModal">ยกเลิก</button>
+        <button type="button" class="btn" id="btnSaveItem">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN = <?!= JSON.stringify(token) ?>;
+    const BOX_ID = <?!= JSON.stringify(boxId || '') ?>;
+    let currentData = null;
+    let editingSheetRow = null;
+
+    function escapeHtml(str) {
+      return (str === null || str === undefined) ? '' : String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+    }
+
+    function toast(msg, isErr) {
+      const wrap = document.getElementById('toastWrap');
+      const el = document.createElement('div');
+      el.className = 'toast' + (isErr ? ' err' : '');
+      el.textContent = msg;
+      wrap.appendChild(el);
+      setTimeout(function() { el.remove(); }, 2800);
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    document.querySelectorAll('[data-close]').forEach(function(btn) {
+      btn.addEventListener('click', function() { closeModal(btn.getAttribute('data-close')); });
+    });
+
+    function expiryClass(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(String(dateStr) + 'T00:00:00+07:00');
+      if (isNaN(d.getTime())) return '';
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const diff = Math.round((d - today) / 86400000);
+      if (diff < 0) return 'exp-bad';
+      if (diff <= 120) return 'exp-warn';
+      return 'exp-ok';
+    }
+
+    function showError(msg) {
+      document.getElementById('loading').style.display = 'none';
+      const el = document.getElementById('error');
+      el.style.display = 'block';
+      el.textContent = msg;
+    }
+
+    function render(data) {
+      currentData = data;
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      const box = data.box || {};
+      const items = data.items || [];
+
+      
+      if (BOX_ID && box.boxId && String(box.boxId) !== String(BOX_ID)) {
+        showError('QR ไม่ตรงกับกล่องนี้ — ดูได้เฉพาะกล่องของฉลากที่สแกน');
+        return;
+      }
+
+      document.getElementById('boxNo').textContent = box.boxNo || '-';
+      document.getElementById('department').textContent = box.department || '-';
+      document.getElementById('homeDepartment').textContent = box.homeDepartment || '-';
+      document.getElementById('expiryDate').textContent = box.expiryDate || 'ไม่ระบุ';
+      document.getElementById('status').textContent = box.status || '-';
+      document.getElementById('itemCount').textContent = String(items.length);
+
+      const list = document.getElementById('items');
+      if (!items.length) {
+        list.innerHTML = '<div class="empty">ไม่มีรายการยาในกล่องนี้</div>';
+        return;
+      }
+      list.innerHTML = items.map(function(item) {
+        const cls = expiryClass(item.expiryDate);
+        const lastEdited = item.lastEditedAt ? String(item.lastEditedAt) : 'ยังไม่มีการแก้ไข';
+        return (
+          '<div class="item">' +
+            '<div class="item-name">' + escapeHtml(item.drugName || '-') + '</div>' +
+            '<div class="item-sub">' +
+              'จำนวน: ' + escapeHtml(String(item.qtyStandard || '-')) + ' ' + escapeHtml(item.unit || '') +
+              ' · หมดอายุ: <span class="' + cls + '">' + escapeHtml(item.expiryDate || 'ไม่ระบุ') + '</span>' +
+            '</div>' +
+            '<div class="item-sub">แก้ไขล่าสุด: ' + escapeHtml(lastEdited) + '</div>' +
+            '<div class="item-actions">' +
+              '<button type="button" class="btn btn-outline btn-sm btn-edit-item" data-row="' + escapeHtml(String(item.sheetRow)) + '">แก้ไข</button>' +
+              '<button type="button" class="btn btn-danger btn-sm btn-del-item" data-row="' + escapeHtml(String(item.sheetRow)) + '">ลบ</button>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function reload() {
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(function(err) { toast('โหลดไม่สำเร็จ: ' + (err && err.message ? err.message : err), true); })
+        .getPublicBoxByToken(TOKEN, BOX_ID);
+    }
+
+    function findItem(row) {
+      row = Number(row);
+      return (currentData && currentData.items || []).find(function(it) { return Number(it.sheetRow) === row; });
+    }
+
+    document.getElementById('btnEditBoxNo').addEventListener('click', function() {
+      document.getElementById('fBoxNo').value = (currentData && currentData.box && currentData.box.boxNo) || '';
+      openModal('boxModal');
+    });
+
+    document.getElementById('btnSaveBoxNo').addEventListener('click', function() {
+      const boxNo = document.getElementById('fBoxNo').value.trim();
+      if (!boxNo) { toast('กรุณาระบุชื่อกล่อง', true); return; }
+      const btn = document.getElementById('btnSaveBoxNo');
+      btn.disabled = true;
+      google.script.run
+        .withSuccessHandler(function() {
+          btn.disabled = false;
+          closeModal('boxModal');
+          toast('บันทึกชื่อกล่องสำเร็จ');
+          reload();
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          toast('บันทึกไม่สำเร็จ: ' + (err && err.message ? err.message : err), true);
+        })
+        .updatePublicBoxByToken(TOKEN, { boxNo: boxNo }, '', BOX_ID);
+    });
+
+    document.getElementById('btnAddItem').addEventListener('click', function() {
+      editingSheetRow = null;
+      document.getElementById('itemModalTitle').textContent = 'เพิ่มยา';
+      document.getElementById('fDrugName').value = '';
+      document.getElementById('fUnit').value = '';
+      document.getElementById('fQty').value = '';
+      document.getElementById('fExpiry').value = '';
+      openModal('itemModal');
+    });
+
+    document.getElementById('items').addEventListener('click', function(e) {
+      const editBtn = e.target.closest('.btn-edit-item');
+      const delBtn = e.target.closest('.btn-del-item');
+      if (editBtn) {
+        const row = editBtn.getAttribute('data-row');
+        const item = findItem(row);
+        if (!item) return;
+        editingSheetRow = Number(row);
+        document.getElementById('itemModalTitle').textContent = 'แก้ไขยา';
+        document.getElementById('fDrugName').value = item.drugName || '';
+        document.getElementById('fUnit').value = item.unit || '';
+        document.getElementById('fQty').value = item.qtyStandard || '';
+        document.getElementById('fExpiry').value = item.expiryDate || '';
+        openModal('itemModal');
+        return;
+      }
+      if (delBtn) {
+        const row = Number(delBtn.getAttribute('data-row'));
+        if (!confirm('ยืนยันลบยานี้จากกล่อง?')) return;
+        google.script.run
+          .withSuccessHandler(function() { toast('ลบยาสำเร็จ'); reload(); })
+          .withFailureHandler(function(err) { toast('ลบไม่สำเร็จ: ' + (err && err.message ? err.message : err), true); })
+          .deletePublicBoxItemByToken(TOKEN, row, '', BOX_ID);
+      }
+    });
+
+    document.getElementById('btnSaveItem').addEventListener('click', function() {
+      const payload = {
+        drugName: document.getElementById('fDrugName').value.trim(),
+        unit: document.getElementById('fUnit').value.trim(),
+        qtyStandard: document.getElementById('fQty').value.trim(),
+        expiryDate: document.getElementById('fExpiry').value
+      };
+      if (!payload.drugName) { toast('กรุณาระบุชื่อยา', true); return; }
+      const btn = document.getElementById('btnSaveItem');
+      btn.disabled = true;
+      const onOk = function() {
+        btn.disabled = false;
+        closeModal('itemModal');
+        toast('บันทึกรายการยาสำเร็จ');
+        reload();
+      };
+      const onErr = function(err) {
+        btn.disabled = false;
+        toast('บันทึกไม่สำเร็จ: ' + (err && err.message ? err.message : err), true);
+      };
+      if (editingSheetRow) {
+        google.script.run.withSuccessHandler(onOk).withFailureHandler(onErr)
+          .updatePublicBoxItemByToken(TOKEN, editingSheetRow, payload, '', BOX_ID);
+      } else {
+        google.script.run.withSuccessHandler(onOk).withFailureHandler(onErr)
+          .addPublicBoxItemByToken(TOKEN, payload, '', BOX_ID);
+      }
+    });
+
+    if (!TOKEN) {
+      showError('QR ไม่ถูกต้อง — ไม่พบรหัสกล่อง');
+    } else {
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(function(err) {
+          showError('โหลดไม่สำเร็จ: ' + (err && err.message ? err.message : err));
+        })
+        .getPublicBoxByToken(TOKEN, BOX_ID);
+    }
+  </script>
+</body>
+</html>

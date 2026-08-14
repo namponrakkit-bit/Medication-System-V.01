@@ -36,12 +36,17 @@ function getCatalogFromMeds_() {
 }
 
 function getInitialData() {
+  const firstPage = searchMedicines({ page: 1, pageSize: 50 });
   return {
-    medicines: getAllMedicines(),
+    medicines: firstPage.items,
+    medicineTotal: firstPage.total,
+    medicinePage: firstPage.page,
+    medicineTotalPages: firstPage.totalPages,
     options: getOptions(),
     catalog: getCatalogFromMeds_(),
     settings: getClientSettings_(),
-    currentUser: getCurrentUser()
+    currentUser: getCurrentUser(),
+    stats: getMedicineStats()
   };
 }
 
@@ -170,7 +175,8 @@ function searchMedicines(params) {
     total: total,
     page: page,
     pageSize: pageSize,
-    totalPages: Math.max(Math.ceil(total / pageSize), 1)
+    totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    stats: getMedicineStats()
   };
 }
 

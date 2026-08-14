@@ -9,11 +9,12 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist ".clasp.json" (
-  copy /Y ".clasp.json.example" ".clasp.json" >nul
-  echo สร้างไฟล์ .clasp.json จากตัวอย่างแล้ว
+if not exist "node_modules\@google\clasp" (
+  echo กำลังติดตั้ง clasp...
+  call npm install
+  if errorlevel 1 exit /b 1
 )
 
 echo กำลังเปิดหน้า login Google สำหรับ clasp...
-npx --yes @google/clasp login
+call npx clasp login
 exit /b %ERRORLEVEL%

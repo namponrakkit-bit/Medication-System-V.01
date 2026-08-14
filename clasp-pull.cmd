@@ -9,18 +9,17 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist ".clasp.json" (
-  copy /Y ".clasp.json.example" ".clasp.json" >nul
-  echo สร้างไฟล์ .clasp.json จากตัวอย่างแล้ว
+if not exist "node_modules\@google\clasp" (
+  echo กำลังติดตั้ง clasp...
+  call npm install
+  if errorlevel 1 exit /b 1
 )
 
 echo.
 echo กำลังดึงโค้ดจาก Google Apps Script...
-echo ถ้าขึ้นให้ login ให้รันคำสั่งนี้ครั้งเดียวก่อน:
-echo   npx --yes @google/clasp login
-echo แล้วเปิด Apps Script API ที่:
-echo   https://script.google.com/home/usersettings
+echo ถ้ายังไม่ login ให้รัน clasp-login.cmd ก่อน
+echo และเปิด Apps Script API ที่ https://script.google.com/home/usersettings
 echo.
 
-npx --yes @google/clasp pull
+call npx clasp pull
 exit /b %ERRORLEVEL%

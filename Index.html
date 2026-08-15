@@ -118,6 +118,7 @@
         <div class="search-box">
           <input id="boxSearchInput" type="text" placeholder="ค้นหาหมายเลขกล่อง หรือแผนก..." autocomplete="off">
           <button id="btnCreateBox" class="btn btn-primary">➕ สร้างกล่องยา</button>
+          <button id="btnShowAllQr" class="btn btn-outline">QR ทั้งหมด</button>
           <button id="btnBoxEditors" class="btn btn-outline">👥 ผู้แก้ไข</button>
         </div>
         
@@ -351,7 +352,7 @@
             <h3 style="font-size:0.9rem; color:var(--mac-text); margin:0;">รายการยา (จะหมดอายุวันที่: <span id="boxExpDate" style="color:var(--mac-red);">-</span>)</h3>
             <button class="btn btn-primary btn-sm" id="btnAddBoxItem">➕ เพิ่มยา</button>
           </div>
-          <div id="boxItemsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <div id="boxItemsList" style="display:flex; flex-direction:column; gap:4px;"></div>
         </div>
 
         
@@ -433,6 +434,27 @@
         <div class="modal-actions" style="margin-top: 20px;">
           <button class="btn btn-outline" id="btnBoxEditorsRefresh">รีเฟรช</button>
           <button class="btn btn-primary" id="btnBoxEditorsClose">ปิด</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="modal-overlay" id="qrGalleryModalOverlay">
+    <div class="modal-box" style="max-width: 920px;">
+      <div class="modal-header-area">
+        <div class="traffic-lights"><div class="light red"></div><div class="light yellow"></div><div class="light green"></div></div>
+        <h2>QR ทุกกล่อง</h2>
+        <div style="width: 52px;"></div>
+      </div>
+      <div class="modal-content-area">
+        <div class="modal-sub">สแกนจากจอเพื่อทดสอบ หรือกดเปิดหน้าสแกน — ไม่ต้องเข้าหน้าพิมพ์</div>
+        <div id="qrGalleryGrid" class="qr-gallery-grid">
+          <div class="loading-state" style="padding:24px; grid-column:1/-1;"><div>กำลังโหลด QR...</div></div>
+        </div>
+        <div class="modal-actions" style="margin-top: 20px;">
+          <button class="btn btn-outline" id="btnQrGalleryRefresh">รีเฟรช</button>
+          <button class="btn btn-primary" id="btnQrGalleryClose">ปิด</button>
         </div>
       </div>
     </div>

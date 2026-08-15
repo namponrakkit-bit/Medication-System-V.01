@@ -904,24 +904,22 @@
     function renderBoxItems(items) {
       const listEl = document.getElementById('boxItemsList');
       if (!items || items.length === 0) {
-        listEl.innerHTML = `<div class="empty-state" style="padding:20px;"><div>ไม่มีรายการยาในกล่องนี้</div></div>`;
+        listEl.innerHTML = `<div class="empty-state" style="padding:16px;"><div>ไม่มีรายการยาในกล่องนี้</div></div>`;
         return;
       }
       listEl.innerHTML = items.map((item) => {
         const sheetRow = item.sheetRow || '';
-        const actions = `<div class="med-actions">
-                <button class="btn btn-outline btn-sm btn-edit-item" data-idx="${escapeHtml(String(sheetRow))}">✏️</button>
-                <button class="btn btn-danger btn-sm btn-delete-item" data-idx="${escapeHtml(String(sheetRow))}">🗑️</button>
-              </div>`;
         return `
-          <div class="med-card exp-green" style="border-top: 3px solid var(--mac-border);">
-            <div class="med-main">
-              <div class="med-name">${escapeHtml(item.drugName)}</div>
-              <div class="med-sub">หน่วย: ${escapeHtml(item.unit || '-')} | วันหมดอายุ: ${escapeHtml(item.expiryDate || '-')}</div>
+          <div class="box-item-row">
+            <div class="bi-main">
+              <div class="bi-name">${escapeHtml(item.drugName || '-')}</div>
+              <div class="bi-sub">${escapeHtml(item.lastEditedBy || '')}</div>
             </div>
-            <div class="med-side">
-              <div class="qty">${escapeHtml(String(item.qtyStandard || '-'))}</div>
-              ${actions}
+            <div class="bi-qty">${escapeHtml(String(item.qtyStandard || '-'))} ${escapeHtml(item.unit || '')}</div>
+            <div class="bi-exp">${escapeHtml(item.expiryDate || '-')}</div>
+            <div class="bi-actions">
+              <button class="btn btn-outline btn-sm btn-edit-item" data-idx="${escapeHtml(String(sheetRow))}">✏️</button>
+              <button class="btn btn-danger btn-sm btn-delete-item" data-idx="${escapeHtml(String(sheetRow))}">🗑️</button>
             </div>
           </div>
         `;
@@ -1048,6 +1046,41 @@
     document.getElementById('btnBoxEditorsClose')?.addEventListener('click', () => boxEditorsModalOverlay.classList.remove('open'));
     document.getElementById('btnBoxEditorsRefresh')?.addEventListener('click', openBoxEditorsModal);
     boxEditorsModalOverlay?.addEventListener('click', e => { if (e.target === boxEditorsModalOverlay) boxEditorsModalOverlay.classList.remove('open'); });
+
+    function qrImageUrl(scanUrl) {
+      return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=2&ecc=M&color=000000&bgcolor=FFFFFF&data=' + encodeURIComponent(scanUrl);
+    }
+    function renderQrGallery(labels) {
+      const grid = document.getElementById('qrGalleryGrid');
+      if (!labels || !labels.length) {
+        grid.innerHTML = `<div class="empty-state" style="padding:24px; grid-column:1/-1;"><div>ยังไม่มีกล่องยา</div></div>`;
+        return;
+      }
+      grid.innerHTML = labels.map(box => `
+        <div class="qr-gallery-card">
+          <img src="${qrImageUrl(box.scanUrl)}" alt="QR ${escapeHtml(box.boxNo || '')}">
+          <div class="qg-name">${escapeHtml(box.boxNo || '-')}</div>
+          <div class="qg-meta">${escapeHtml(box.department || '-')} · ${escapeHtml(box.status || '')}</div>
+          <a href="${escapeHtml(box.scanUrl)}" target="_blank" rel="noopener">เปิดหน้าสแกน</a>
+        </div>
+      `).join('');
+    }
+    function openQrGallery() {
+      const overlay = document.getElementById('qrGalleryModalOverlay');
+      const grid = document.getElementById('qrGalleryGrid');
+      grid.innerHTML = `<div class="loading-state" style="padding:24px; grid-column:1/-1;"><div>กำลังโหลด QR...</div></div>`;
+      overlay.classList.add('open');
+      google.script.run.withSuccessHandler(renderQrGallery)
+        .withFailureHandler(err => {
+          grid.innerHTML = `<div class="empty-state" style="padding:20px; grid-column:1/-1; color:var(--mac-red);"><div>โหลดไม่สำเร็จ: ${escapeHtml(err.message || err)}</div></div>`;
+        }).getAllBoxLabelData();
+    }
+    document.getElementById('btnShowAllQr')?.addEventListener('click', openQrGallery);
+    document.getElementById('btnQrGalleryClose')?.addEventListener('click', () => document.getElementById('qrGalleryModalOverlay').classList.remove('open'));
+    document.getElementById('btnQrGalleryRefresh')?.addEventListener('click', openQrGallery);
+    document.getElementById('qrGalleryModalOverlay')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+    });
     document.querySelectorAll('#editorsModalTabs .modal-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('#editorsModalTabs .modal-tab').forEach(t => t.classList.remove('active'));

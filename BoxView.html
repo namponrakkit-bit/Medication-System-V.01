@@ -43,11 +43,19 @@
       background: #ecfdf5; color: var(--accent); font-size: 0.85rem; font-weight: 600;
     }
     .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-    h2 { margin: 20px 0 10px; font-size: 1.05rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .item { padding: 12px; margin-bottom: 8px; }
-    .item-name { font-weight: 700; font-size: 1.02rem; }
-    .item-sub { margin-top: 4px; color: var(--muted); font-size: 0.88rem; }
-    .item-actions { margin-top: 10px; display: flex; gap: 8px; }
+    h2 { margin: 14px 0 8px; font-size: 0.98rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #items { display: flex; flex-direction: column; gap: 4px; }
+    .item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; margin-bottom: 0;
+    }
+    .item-body { flex: 1; min-width: 0; }
+    .item-name { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .item-sub { margin-top: 1px; color: var(--muted); font-size: 0.7rem; }
+    .item-qty { font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+    .item-exp { font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+    .item-actions { margin-top: 0; display: flex; gap: 4px; flex-shrink: 0; }
+    .item-actions .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
     .exp-ok { color: var(--accent); }
     .exp-warn { color: var(--warn); font-weight: 600; }
     .exp-bad { color: var(--danger); font-weight: 700; }
@@ -302,17 +310,17 @@
         const cls = expiryClass(item.expiryDate);
         const when = formatEditedAt(item.lastEditedAt);
         const who = item.lastEditedBy ? String(item.lastEditedBy) : '';
-        const lastEdited = who && when ? (who + ' · ' + when) : (who || when || 'ยังไม่มีการแก้ไข');
+        const lastEdited = who && when ? (who + ' · ' + when) : (who || when || '');
         return (
           '<div class="item">' +
-            '<div class="item-name">' + escapeHtml(item.drugName || '-') + '</div>' +
-            '<div class="item-sub">' +
-              'จำนวน: ' + escapeHtml(String(item.qtyStandard || '-')) + ' ' + escapeHtml(item.unit || '') +
-              ' · หมดอายุ: <span class="' + cls + '">' + escapeHtml(item.expiryDate || 'ไม่ระบุ') + '</span>' +
+            '<div class="item-body">' +
+              '<div class="item-name">' + escapeHtml(item.drugName || '-') + '</div>' +
+              (lastEdited ? '<div class="item-sub">' + escapeHtml(lastEdited) + '</div>' : '') +
             '</div>' +
-            '<div class="item-sub">แก้ไขล่าสุด: ' + escapeHtml(lastEdited) + '</div>' +
+            '<div class="item-qty">' + escapeHtml(String(item.qtyStandard || '-')) + ' ' + escapeHtml(item.unit || '') + '</div>' +
+            '<div class="item-exp ' + cls + '">' + escapeHtml(item.expiryDate || '-') + '</div>' +
             '<div class="item-actions">' +
-              '<button type="button" class="btn btn-outline btn-sm btn-edit-item" data-row="' + escapeHtml(String(item.sheetRow)) + '">แก้ไข</button>' +
+              '<button type="button" class="btn btn-outline btn-sm btn-edit-item" data-row="' + escapeHtml(String(item.sheetRow)) + '">แก้</button>' +
               '<button type="button" class="btn btn-danger btn-sm btn-del-item" data-row="' + escapeHtml(String(item.sheetRow)) + '">ลบ</button>' +
             '</div>' +
           '</div>'

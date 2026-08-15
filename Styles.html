@@ -198,6 +198,22 @@
     .box-status.dept { background: rgba(0,122,255,0.1); color: var(--mac-blue); }
     .box-info { font-size: 0.85rem; color: var(--mac-muted); display: flex; flex-direction: column; gap: 4px; }
     .box-expiry { font-size: 0.8rem; font-weight: 500; color: var(--mac-red); margin-top: 4px; }
+
+    .qr-gallery-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; max-height:62vh; overflow:auto; padding:4px 2px; }
+    .qr-gallery-card { background:var(--mac-card-bg); border:1px solid var(--mac-glass-border); border-radius:12px; padding:12px; text-align:center; box-shadow: var(--shadow-sm); }
+    .qr-gallery-card img { width:140px; height:140px; display:block; margin:0 auto 8px; background:#fff; border-radius:8px; }
+    .qr-gallery-card .qg-name { font-weight:700; font-size:0.92rem; color:var(--mac-text); }
+    .qr-gallery-card .qg-meta { font-size:0.75rem; color:var(--mac-muted); margin:4px 0 8px; }
+    .qr-gallery-card a { font-size:0.8rem; font-weight:600; color:var(--mac-blue); text-decoration:none; }
+
+    .box-item-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--mac-glass-border); border-radius:8px; background:var(--mac-card-bg); }
+    .box-item-row .bi-main { flex:1; min-width:0; }
+    .box-item-row .bi-name { font-weight:600; font-size:0.88rem; color:var(--mac-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .box-item-row .bi-sub { font-size:0.72rem; color:var(--mac-muted); }
+    .box-item-row .bi-exp { font-size:0.78rem; font-weight:600; white-space:nowrap; }
+    .box-item-row .bi-qty { font-size:0.82rem; font-weight:600; white-space:nowrap; color:var(--mac-text); }
+    .box-item-row .bi-actions { display:flex; gap:4px; flex-shrink:0; }
+    .box-item-row .bi-actions .btn { padding:4px 7px; font-size:0.75rem; }
     
     .modal-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--mac-border); margin-bottom: 16px; }
     .modal-tab { padding: 10px 16px; font-size: 0.9rem; font-weight: 500; color: var(--mac-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }

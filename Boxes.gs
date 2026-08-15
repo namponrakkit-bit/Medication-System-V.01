@@ -138,7 +138,14 @@ function getAdminBoxDetails(boxId) {
   const itemsSheet = getBoxItemsSheet_();
   const itemValues = itemsSheet.getDataRange().getValues();
   const itemHeaders = itemValues.shift();
-  const items = itemValues.filter(row => row[itemHeaders.indexOf('boxId')].toString() === boxId.toString()).map(row => rowToObject_(itemHeaders, row));
+  const items = [];
+  itemValues.forEach(function(row, i) {
+    if (row[itemHeaders.indexOf('boxId')].toString() === boxId.toString()) {
+      const obj = rowToObject_(itemHeaders, row);
+      obj.sheetRow = i + 2;
+      items.push(obj);
+    }
+  });
 
   const historySheet = getBoxHistorySheet_();
   const histValues = historySheet.getDataRange().getValues();
@@ -230,6 +237,30 @@ function getBoxLabelData(boxId) {
     qrToken: token,
     scanUrl: scanUrl
   };
+}
+
+/** QR ทุกกล่อง สำหรับทดสอบสแกน — ไม่ดึงรายการยา */
+function getAllBoxLabelData() {
+  const boxes = getBoxesData() || [];
+  const baseUrl = ScriptApp.getService().getUrl();
+  if (!baseUrl) throw new Error('ยังไม่ได้ Deploy เป็น Web App — Deploy ก่อนแล้วลองใหม่');
+  return boxes.map(function(box) {
+    const boxId = box.boxId;
+    const token = ensureBoxQrToken_(boxId);
+    return {
+      boxId: boxId,
+      boxNo: box.boxNo || '',
+      department: box.department || '',
+      homeDepartment: box.homeDepartment || '',
+      status: box.status || '',
+      expiryDate: box.expiryDate || '',
+      qrToken: token,
+      scanUrl: baseUrl +
+        '?view=box' +
+        '&id=' + encodeURIComponent(String(boxId)) +
+        '&t=' + encodeURIComponent(token)
+    };
+  });
 }
 
 /**

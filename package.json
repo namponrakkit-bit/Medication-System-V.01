@@ -1,7 +1,7 @@
 {
   "name": "medication-system-v01",
   "private": true,
-  "description": "ระบบจัดการยา Google Apps Script — ใช้ npm install แล้วรัน clasp pull",
+  "description": "ระบบจัดการยา Google Apps Script — clasp-install.cmd ปรับไฟล์ในเครื่อง แล้ว clasp-login / clasp-push",
   "scripts": {
     "postinstall": "node scripts/setup-clasp.js",
     "clasp:login": "clasp login",

@@ -16,14 +16,19 @@ if not exist "node_modules\@google\clasp" (
 )
 
 if not exist ".clasp.json" (
-  echo ไม่พบ .clasp.json — รัน clasp-install.cmd หรือ npm install ก่อน
+  echo ไม่พบ .clasp.json — รัน clasp-install.cmd ก่อนเพื่อปรับไฟล์ในเครื่อง
+  exit /b 1
+)
+
+if not exist "%USERPROFILE%\.clasprc.json" (
+  echo ยังไม่ได้ login clasp บนเครื่องนี้
+  echo รัน clasp-login.cmd ก่อน แล้วค่อยรัน clasp-push.cmd อีกครั้ง
   exit /b 1
 )
 
 echo.
 echo กำลังส่งโค้ดขึ้น Google Apps Script...
-echo ถ้ายังไม่ login ให้รัน clasp-login.cmd ก่อน
-echo และเปิด Apps Script API ที่ https://script.google.com/home/usersettings
+echo ถ้า error ให้เปิด Apps Script API ที่ https://script.google.com/home/usersettings
 echo.
 
 call npx clasp push --force

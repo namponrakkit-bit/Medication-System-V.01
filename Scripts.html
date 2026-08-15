@@ -909,14 +909,17 @@
       }
       listEl.innerHTML = items.map((item) => {
         const sheetRow = item.sheetRow || '';
+        const expInfo = getExpiryInfo(item.expiryDate);
+        const expCls = expInfo.status && expInfo.status !== 'nodate' ? ' exp-' + expInfo.status : '';
+        const who = String(item.lastEditedBy || '').trim();
         return `
           <div class="box-item-row">
             <div class="bi-main">
               <div class="bi-name">${escapeHtml(item.drugName || '-')}</div>
-              <div class="bi-sub">${escapeHtml(item.lastEditedBy || '')}</div>
+              ${who ? `<div class="bi-sub">${escapeHtml(who)}</div>` : ''}
             </div>
             <div class="bi-qty">${escapeHtml(String(item.qtyStandard || '-'))} ${escapeHtml(item.unit || '')}</div>
-            <div class="bi-exp">${escapeHtml(item.expiryDate || '-')}</div>
+            <div class="bi-exp${expCls}">${escapeHtml(item.expiryDate || '-')}</div>
             <div class="bi-actions">
               <button class="btn btn-outline btn-sm btn-edit-item" data-idx="${escapeHtml(String(sheetRow))}">✏️</button>
               <button class="btn btn-danger btn-sm btn-delete-item" data-idx="${escapeHtml(String(sheetRow))}">🗑️</button>

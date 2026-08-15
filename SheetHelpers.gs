@@ -1,50 +1,41 @@
 /**
  * ==============================================================
- *  Settings.gs — การตั้งค่าระบบ (เก็บใน Script Properties)
- *  ไม่มี RBAC — ทุกคนสามารถอ่านการตั้งค่า
+ *  SheetHelpers.gs — เปิด Spreadsheet / Sheet และแปลงแถวเป็น object
  * ==============================================================
  */
 
-// ใช้ภายใน server เท่านั้น — ห้ามส่งค่านี้กลับไป frontend ตรงๆ เพราะมี token
-function getAdminSettings() {
+function getSpreadsheet_() {
   const props = PropertiesService.getScriptProperties();
-  return {
-    lineToken: props.getProperty('LINE_CHANNEL_ACCESS_TOKEN') || '',
-    lineTargetId: props.getProperty('LINE_TARGET_ID') || '',
-    redMonths: parseInt(props.getProperty('RED_MONTHS'), 10) || 4,
-    yellowMonths: parseInt(props.getProperty('YELLOW_MONTHS'), 10) || 8
-  };
+  const sheetId = props.getProperty('SHEET_ID');
+  return sheetId ? SpreadsheetApp.openById(sheetId) : SpreadsheetApp.getActiveSpreadsheet();
 }
 
-// เวอร์ชันสำหรับ frontend — ส่งแค่ hasLineToken (boolean) แทน token จริง
-function getClientSettings_() {
-  const s = getAdminSettings();
-  return {
-    lineTargetId: s.lineTargetId,
-    redMonths: s.redMonths,
-    yellowMonths: s.yellowMonths,
-    hasLineToken: !!s.lineToken
-  };
-}
-
-function saveAdminSettings(data) {
-  data = data || {};
-
-  const props = PropertiesService.getScriptProperties();
-
-  // อัปเดต token เฉพาะเมื่อมีการส่งค่าใหม่ที่ไม่ว่างเท่านั้น (เว้นว่าง = คงค่าเดิม)
-  if (data.lineToken !== undefined) {
-    const token = (data.lineToken || '').toString().trim();
-    if (token) props.setProperty('LINE_CHANNEL_ACCESS_TOKEN', token);
+function getOrCreateSheet_(name, headers) {
+  const ss = getSpreadsheet_();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.appendRow(headers);
+    sheet.setFrozenRows(1);
   }
-  if (data.lineTargetId !== undefined) props.setProperty('LINE_TARGET_ID', data.lineTargetId);
+  return sheet;
+}
 
-  const red = parseInt(data.redMonths, 10);
-  const yellow = parseInt(data.yellowMonths, 10);
+function getSheet_() { return getOrCreateSheet_(SHEET_NAME, DEFAULT_HEADERS); }
+function getOptionsSheet_() { return getOrCreateSheet_(OPTIONS_SHEET_NAME, ['หมวดหมู่', 'ที่จัดเก็บ']); }
+function getLogSheet_() { return getOrCreateSheet_(LOG_SHEET_NAME, LOG_HEADERS); }
+function getBoxSheet_() { return getOrCreateSheet_(BOX_SHEET_NAME, BOX_HEADERS); }
+function getBoxItemsSheet_() { return getOrCreateSheet_(BOX_ITEMS_SHEET_NAME, BOX_ITEM_HEADERS); }
+function getBoxHistorySheet_() { return getOrCreateSheet_(BOX_HISTORY_SHEET_NAME, BOX_HISTORY_HEADERS); }
 
-  if (!isNaN(red) && red >= 0) props.setProperty('RED_MONTHS', red.toString());
-  if (!isNaN(yellow) && yellow >= red) props.setProperty('YELLOW_MONTHS', yellow.toString());
-
-  // คืนค่าเวอร์ชันปลอดภัย (ไม่มี token) ให้ frontend
-  return { success: true, settings: getClientSettings_() };
+function rowToObject_(headers, row) {
+  const obj = {};
+  headers.forEach((h, i) => {
+    let val = row[i];
+    if (val instanceof Date) {
+      val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+    obj[h] = val;
+  });
+  return obj;
 }

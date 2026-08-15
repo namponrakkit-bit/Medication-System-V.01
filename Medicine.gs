@@ -6,15 +6,52 @@
  * ==============================================================
  */
 
-function getAllMedicines() {
+var MEDICINES_CACHE_KEY_ = 'meds:v1';
+var MEDICINES_CACHE_TTL_SEC_ = 90;
+var medicinesMemo_ = null;
+
+function invalidateMedicinesCache_() {
+  medicinesMemo_ = null;
+  try {
+    CacheService.getScriptCache().remove(MEDICINES_CACHE_KEY_);
+  } catch (e) {}
+}
+
+function readMedicinesFromSheet_() {
   const sheet = getSheet_();
-  const range = sheet.getDataRange();
-  const values = range.getValues();
+  const values = sheet.getDataRange().getValues();
   if (values.length === 0) return [];
   const headers = values.shift();
   return values
     .filter(row => row[0] !== '' && row[0] !== null)
     .map(row => rowToObject_(headers, row));
+}
+
+function getAllMedicines() {
+  if (medicinesMemo_ !== null) return medicinesMemo_;
+
+  try {
+    const cached = CacheService.getScriptCache().get(MEDICINES_CACHE_KEY_);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) {
+        medicinesMemo_ = parsed;
+        return medicinesMemo_;
+      }
+    }
+  } catch (e) {}
+
+  medicinesMemo_ = readMedicinesFromSheet_();
+  try {
+    CacheService.getScriptCache().put(
+      MEDICINES_CACHE_KEY_,
+      JSON.stringify(medicinesMemo_),
+      MEDICINES_CACHE_TTL_SEC_
+    );
+  } catch (e) {
+    // ข้ามถ้าเกิน 100KB ต่อคีย์ — ยังใช้ memo ในคำขอนี้ได้
+  }
+  return medicinesMemo_;
 }
 
 function getCatalogFromMeds_() {
@@ -36,12 +73,17 @@ function getCatalogFromMeds_() {
 }
 
 function getInitialData() {
+  const firstPage = searchMedicines({ page: 1, pageSize: 50 });
   return {
-    medicines: getAllMedicines(),
+    medicines: firstPage.items,
+    medicineTotal: firstPage.total,
+    medicinePage: firstPage.page,
+    medicineTotalPages: firstPage.totalPages,
     options: getOptions(),
     catalog: getCatalogFromMeds_(),
     settings: getClientSettings_(),
-    currentUser: getCurrentUser()
+    currentUser: getCurrentUser(),
+    stats: firstPage.stats || getMedicineStats()
   };
 }
 
@@ -73,6 +115,7 @@ function addMedicine(data, actorName, actorPosition) {
 
   const row = DEFAULT_HEADERS.map(h => (h === 'รหัสยา') ? code : (data[h] !== undefined ? data[h] : ''));
   sheet.appendRow(row);
+  invalidateMedicinesCache_();
 
   logChange_('เพิ่ม', code, data['ชื่อยา'], 'เพิ่มยาใหม่เข้าสต็อก จำนวน ' + (data['จำนวนคงเหลือ'] || 0) + ' ' + (data['หน่วย'] || ''), actorName, actorPosition);
   return { success: true, code: code };
@@ -89,6 +132,7 @@ function updateMedicine(originalCode, data, actorName, actorPosition) {
 
   const row = DEFAULT_HEADERS.map(h => (h === 'รหัสยา') ? newCode : (data[h] !== undefined ? data[h] : ''));
   sheet.getRange(rowIndex, 1, 1, DEFAULT_HEADERS.length).setValues([row]);
+  invalidateMedicinesCache_();
   logChange_('แก้ไข', newCode, data['ชื่อยา'], 'แก้ไขข้อมูลยา (รหัสเดิม: ' + originalCode + ')', actorName, actorPosition);
   return { success: true, code: newCode };
 }
@@ -101,6 +145,7 @@ function deleteMedicine(code, actorName, actorPosition) {
   const values = sheet.getRange(rowIndex, 1, 1, DEFAULT_HEADERS.length).getValues()[0];
   const name = values[1];
   sheet.deleteRow(rowIndex);
+  invalidateMedicinesCache_();
   logChange_('ลบ', code, name, 'ลบรายการยาออกจากระบบ', actorName, actorPosition);
   return { success: true };
 }
@@ -170,7 +215,8 @@ function searchMedicines(params) {
     total: total,
     page: page,
     pageSize: pageSize,
-    totalPages: Math.max(Math.ceil(total / pageSize), 1)
+    totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    stats: getMedicineStats()
   };
 }
 

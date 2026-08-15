@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+npm-debug.log*
+
+# clasp OAuth tokens only — .clasp.json (scriptId) is committed
+.clasprc.json

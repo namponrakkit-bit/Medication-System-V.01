@@ -16,8 +16,13 @@ if not exist "node_modules\@google\clasp" (
 )
 
 if not exist ".clasp.json" (
-  echo ไม่พบ .clasp.json — รัน clasp-install.cmd ก่อนเพื่อปรับไฟล์ในเครื่อง
-  exit /b 1
+  if exist ".clasp.json.example" (
+    copy /y ".clasp.json.example" ".clasp.json" >nul
+    echo สร้าง .clasp.json จากตัวอย่างแล้ว
+  ) else (
+    echo ไม่พบ .clasp.json — รัน clasp-install.cmd ก่อน
+    exit /b 1
+  )
 )
 
 if not exist "%USERPROFILE%\.clasprc.json" (

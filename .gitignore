@@ -2,6 +2,5 @@
 node_modules/
 npm-debug.log*
 
-# clasp credentials and local project link
+# clasp OAuth tokens only — .clasp.json (scriptId) is committed
 .clasprc.json
-.clasp.json

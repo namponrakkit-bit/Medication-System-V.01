@@ -6,6 +6,7 @@
     "postinstall": "node scripts/setup-clasp.js",
     "clasp:login": "clasp login",
     "clasp:pull": "clasp pull",
+    "clasp:push": "clasp push --force",
     "clasp:status": "clasp status"
   },
   "devDependencies": {

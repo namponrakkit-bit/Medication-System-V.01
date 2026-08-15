@@ -268,7 +268,8 @@ function findBoxByQrToken_(token, expectedBoxId) {
 
 function resolveMobileActor_(actorName) {
   const name = String(actorName || '').trim();
-  return name || 'มือถือ (สแกน QR)';
+  if (!name) throw new Error('กรุณาลงชื่อก่อนแก้ไขกล่องยา');
+  return name;
 }
 
 /** หน้ามือถือเมื่อสแกน QR — เฉพาะกล่องของ token นั้น */
@@ -291,7 +292,9 @@ function getPublicBoxByToken(token, boxId) {
           drugName: obj.drugName || '',
           unit: obj.unit || '',
           qtyStandard: obj.qtyStandard || '',
-          expiryDate: obj.expiryDate || ''
+          expiryDate: obj.expiryDate || '',
+          lastEditedBy: obj.lastEditedBy || '',
+          lastEditedAt: obj.lastEditedAt || ''
         });
       }
     });

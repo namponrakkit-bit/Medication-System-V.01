@@ -74,11 +74,17 @@
     .panel h3 { margin: 0 0 12px; font-size: 1.1rem; }
     .field { margin-bottom: 10px; }
     .field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
-    .field input {
+    .field input, .field select {
       width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
       font: inherit; background: #fff;
     }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    .actor {
+      margin-top: 12px; display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; flex-wrap: wrap; font-size: 0.88rem; color: var(--muted);
+    }
+    .actor strong { color: var(--ink); }
+    .modal.login { z-index: 45; }
   </style>
 </head>
 <body>
@@ -95,6 +101,10 @@
           <div>วันหมดอายุใกล้สุด: <strong id="expiryDate">-</strong></div>
         </div>
         <div class="status" id="status">-</div>
+        <div class="actor">
+          <span>ผู้ทำรายการ: <strong id="actorLabel">-</strong></span>
+          <button type="button" class="btn btn-outline btn-sm" id="btnChangeActor">เปลี่ยนชื่อ</button>
+        </div>
         <div class="row-actions">
           <button type="button" class="btn btn-outline btn-sm" id="btnEditBoxNo">✏️ แก้ชื่อกล่อง</button>
         </div>
@@ -122,6 +132,28 @@
     </div>
   </div>
 
+  <div class="modal login" id="loginModal">
+    <div class="panel">
+      <h3>ลงชื่อก่อนใช้งาน</h3>
+      <p class="field" style="color:var(--muted); font-size:0.9rem; margin:0 0 12px;">กรุณากรอกชื่อและตำแหน่ง เพื่อบันทึกว่าใครแก้ไขกล่องนี้</p>
+      <div class="field"><label>ชื่อของคุณ *</label><input id="fLoginName" type="text" maxlength="80" placeholder="เช่น นําพล, ลำดวน"></div>
+      <div class="field">
+        <label>ตำแหน่ง *</label>
+        <select id="fLoginPosition">
+          <option value="">-- เลือก --</option>
+          <option value="เภสัชกร">เภสัชกร</option>
+          <option value="พยาบาล">พยาบาล</option>
+          <option value="ผู้ช่วย">ผู้ช่วย</option>
+          <option value="อื่นๆ">อื่นๆ</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="btnLoginCancel" style="display:none;">ยกเลิก</button>
+        <button type="button" class="btn" id="btnLoginSubmit">เข้าใช้งาน</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="itemModal">
     <div class="panel">
       <h3 id="itemModalTitle">เพิ่มยา</h3>
@@ -139,8 +171,11 @@
   <script>
     const TOKEN = <?!= JSON.stringify(token) ?>;
     const BOX_ID = <?!= JSON.stringify(boxId || '') ?>;
+    const LOGIN_SESSION_MS = 10 * 60 * 1000;
     let currentData = null;
     let editingSheetRow = null;
+    let currentUser = { userId: '', name: '', position: '' };
+    let changingActor = false;
 
     function escapeHtml(str) {
       return (str === null || str === undefined) ? '' : String(str)
@@ -163,6 +198,53 @@
       btn.addEventListener('click', function() { closeModal(btn.getAttribute('data-close')); });
     });
 
+    function getSavedUser() {
+      try { const s = localStorage.getItem('currentUser'); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+    }
+    function clearUser() { try { localStorage.removeItem('currentUser'); } catch (e) {} }
+    function saveUser(u) {
+      try {
+        const payload = Object.assign({}, u, { loggedAt: Date.now() });
+        localStorage.setItem('currentUser', JSON.stringify(payload));
+        currentUser = payload;
+      } catch (e) {}
+    }
+    function getValidSavedUser() {
+      const saved = getSavedUser();
+      if (!saved || !saved.name || !saved.position) { clearUser(); return null; }
+      const loggedAt = Number(saved.loggedAt) || 0;
+      if (!loggedAt || (Date.now() - loggedAt) > LOGIN_SESSION_MS) {
+        clearUser();
+        return null;
+      }
+      return saved;
+    }
+    function actorLabel() {
+      const u = getValidSavedUser() || currentUser;
+      if (u && u.name && u.position) return u.name + ' (' + u.position + ')';
+      if (u && u.name) return String(u.name);
+      return '';
+    }
+    function refreshActorChip() {
+      const el = document.getElementById('actorLabel');
+      if (el) el.textContent = actorLabel() || 'ยังไม่ลงชื่อ';
+    }
+    function requireActor() {
+      const label = actorLabel();
+      if (label) return label;
+      toast('กรุณาลงชื่อก่อนแก้ไข', true);
+      openLoginModal(true);
+      return '';
+    }
+    function openLoginModal(allowCancel) {
+      changingActor = !!allowCancel;
+      const saved = getValidSavedUser() || currentUser;
+      document.getElementById('fLoginName').value = saved && saved.name ? saved.name : '';
+      document.getElementById('fLoginPosition').value = saved && saved.position ? saved.position : '';
+      document.getElementById('btnLoginCancel').style.display = changingActor ? '' : 'none';
+      openModal('loginModal');
+    }
+
     function expiryClass(dateStr) {
       if (!dateStr) return '';
       const d = new Date(String(dateStr) + 'T00:00:00+07:00');
@@ -172,6 +254,15 @@
       if (diff < 0) return 'exp-bad';
       if (diff <= 120) return 'exp-warn';
       return 'exp-ok';
+    }
+
+    function formatEditedAt(val) {
+      if (!val) return '';
+      const d = (val instanceof Date) ? val : new Date(val);
+      if (isNaN(d.getTime())) return String(val);
+      const pad = function(n) { return String(n).padStart(2, '0'); };
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+        ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     }
 
     function showError(msg) {
@@ -186,10 +277,10 @@
       document.getElementById('loading').style.display = 'none';
       document.getElementById('error').style.display = 'none';
       document.getElementById('content').style.display = 'block';
+      refreshActorChip();
       const box = data.box || {};
       const items = data.items || [];
 
-      
       if (BOX_ID && box.boxId && String(box.boxId) !== String(BOX_ID)) {
         showError('QR ไม่ตรงกับกล่องนี้ — ดูได้เฉพาะกล่องของฉลากที่สแกน');
         return;
@@ -209,7 +300,9 @@
       }
       list.innerHTML = items.map(function(item) {
         const cls = expiryClass(item.expiryDate);
-        const lastEdited = item.lastEditedAt ? String(item.lastEditedAt) : 'ยังไม่มีการแก้ไข';
+        const when = formatEditedAt(item.lastEditedAt);
+        const who = item.lastEditedBy ? String(item.lastEditedBy) : '';
+        const lastEdited = who && when ? (who + ' · ' + when) : (who || when || 'ยังไม่มีการแก้ไข');
         return (
           '<div class="item">' +
             '<div class="item-name">' + escapeHtml(item.drugName || '-') + '</div>' +
@@ -227,6 +320,17 @@
       }).join('');
     }
 
+    function loadBox() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('error').style.display = 'none';
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(function(err) {
+          showError('โหลดไม่สำเร็จ: ' + (err && err.message ? err.message : err));
+        })
+        .getPublicBoxByToken(TOKEN, BOX_ID);
+    }
+
     function reload() {
       google.script.run
         .withSuccessHandler(render)
@@ -239,12 +343,56 @@
       return (currentData && currentData.items || []).find(function(it) { return Number(it.sheetRow) === row; });
     }
 
+    document.getElementById('btnChangeActor').addEventListener('click', function() {
+      openLoginModal(true);
+    });
+
+    document.getElementById('btnLoginCancel').addEventListener('click', function() {
+      if (changingActor) closeModal('loginModal');
+    });
+
+    document.getElementById('btnLoginSubmit').addEventListener('click', function() {
+      const name = document.getElementById('fLoginName').value.trim();
+      const position = document.getElementById('fLoginPosition').value.trim();
+      if (!name || !position) {
+        toast('กรุณากรอกชื่อและตำแหน่ง', true);
+        return;
+      }
+      const btn = document.getElementById('btnLoginSubmit');
+      btn.disabled = true;
+      const saved = getValidSavedUser();
+      const userId = (saved && saved.userId)
+        ? saved.userId
+        : ('user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9));
+      google.script.run
+        .withSuccessHandler(function(result) {
+          btn.disabled = false;
+          if (!result || !result.success) {
+            toast('บันทึกชื่อไม่สำเร็จ', true);
+            return;
+          }
+          saveUser({ userId: userId, name: name, position: position });
+          closeModal('loginModal');
+          refreshActorChip();
+          if (!currentData) loadBox();
+          else toast('บันทึกชื่อผู้ทำรายการแล้ว');
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          toast('บันทึกชื่อไม่สำเร็จ: ' + (err && err.message ? err.message : err), true);
+        })
+        .saveUserInfo(userId, name, position);
+    });
+
     document.getElementById('btnEditBoxNo').addEventListener('click', function() {
+      if (!requireActor()) return;
       document.getElementById('fBoxNo').value = (currentData && currentData.box && currentData.box.boxNo) || '';
       openModal('boxModal');
     });
 
     document.getElementById('btnSaveBoxNo').addEventListener('click', function() {
+      const actor = requireActor();
+      if (!actor) return;
       const boxNo = document.getElementById('fBoxNo').value.trim();
       if (!boxNo) { toast('กรุณาระบุชื่อกล่อง', true); return; }
       const btn = document.getElementById('btnSaveBoxNo');
@@ -260,10 +408,11 @@
           btn.disabled = false;
           toast('บันทึกไม่สำเร็จ: ' + (err && err.message ? err.message : err), true);
         })
-        .updatePublicBoxByToken(TOKEN, { boxNo: boxNo }, '', BOX_ID);
+        .updatePublicBoxByToken(TOKEN, { boxNo: boxNo }, actor, BOX_ID);
     });
 
     document.getElementById('btnAddItem').addEventListener('click', function() {
+      if (!requireActor()) return;
       editingSheetRow = null;
       document.getElementById('itemModalTitle').textContent = 'เพิ่มยา';
       document.getElementById('fDrugName').value = '';
@@ -277,6 +426,7 @@
       const editBtn = e.target.closest('.btn-edit-item');
       const delBtn = e.target.closest('.btn-del-item');
       if (editBtn) {
+        if (!requireActor()) return;
         const row = editBtn.getAttribute('data-row');
         const item = findItem(row);
         if (!item) return;
@@ -290,16 +440,20 @@
         return;
       }
       if (delBtn) {
+        const actor = requireActor();
+        if (!actor) return;
         const row = Number(delBtn.getAttribute('data-row'));
         if (!confirm('ยืนยันลบยานี้จากกล่อง?')) return;
         google.script.run
           .withSuccessHandler(function() { toast('ลบยาสำเร็จ'); reload(); })
           .withFailureHandler(function(err) { toast('ลบไม่สำเร็จ: ' + (err && err.message ? err.message : err), true); })
-          .deletePublicBoxItemByToken(TOKEN, row, '', BOX_ID);
+          .deletePublicBoxItemByToken(TOKEN, row, actor, BOX_ID);
       }
     });
 
     document.getElementById('btnSaveItem').addEventListener('click', function() {
+      const actor = requireActor();
+      if (!actor) return;
       const payload = {
         drugName: document.getElementById('fDrugName').value.trim(),
         unit: document.getElementById('fUnit').value.trim(),
@@ -321,22 +475,25 @@
       };
       if (editingSheetRow) {
         google.script.run.withSuccessHandler(onOk).withFailureHandler(onErr)
-          .updatePublicBoxItemByToken(TOKEN, editingSheetRow, payload, '', BOX_ID);
+          .updatePublicBoxItemByToken(TOKEN, editingSheetRow, payload, actor, BOX_ID);
       } else {
         google.script.run.withSuccessHandler(onOk).withFailureHandler(onErr)
-          .addPublicBoxItemByToken(TOKEN, payload, '', BOX_ID);
+          .addPublicBoxItemByToken(TOKEN, payload, actor, BOX_ID);
       }
     });
 
     if (!TOKEN) {
       showError('QR ไม่ถูกต้อง — ไม่พบรหัสกล่อง');
     } else {
-      google.script.run
-        .withSuccessHandler(render)
-        .withFailureHandler(function(err) {
-          showError('โหลดไม่สำเร็จ: ' + (err && err.message ? err.message : err));
-        })
-        .getPublicBoxByToken(TOKEN, BOX_ID);
+      const saved = getValidSavedUser();
+      if (saved) {
+        currentUser = saved;
+        refreshActorChip();
+        loadBox();
+      } else {
+        document.getElementById('loading').style.display = 'none';
+        openLoginModal(false);
+      }
     }
   </script>
 </body>

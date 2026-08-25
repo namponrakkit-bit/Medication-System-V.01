@@ -88,9 +88,18 @@ function exportExpiringMedicinesToSheet() {
 
 /* -------------------- LINE Flex Message notification -------------------- */
 
+// Trigger handler (รันโดย time-based trigger รายวัน) — ใช้ลอจิกร่วมกับปุ่ม "ส่งสรุปตอนนี้"
 function checkExpiryAndNotify() {
+  const res = sendExpirySummaryNow();
+  Logger.log(res.message);
+}
+
+/**
+ * รวบรวมยาใกล้หมดอายุแล้วส่งสรุปทาง LINE ทันที (เรียกได้จากปุ่มในหน้าเว็บ)
+ * คืน { success, sent, counts, message }
+ */
+function sendExpirySummaryNow() {
   const all = getAllMedicines();
-  const today = new Date(); today.setHours(0, 0, 0, 0);
   const expired = [], red = [], yellow = [];
   all.forEach(item => {
     const info = getExpiryStatus_(item['วันหมดอายุ']);
@@ -99,11 +108,41 @@ function checkExpiryAndNotify() {
     else if (info.status === 'red') red.push({ item, diffDays: info.diffDays, months: info.months });
     else if (info.status === 'yellow') yellow.push({ item, diffDays: info.diffDays, months: info.months });
   });
-  if (expired.length === 0 && red.length === 0 && yellow.length === 0) { Logger.log('✅ ไม่มียาหมดอายุ/ใกล้หมดอายุ ในวันนี้'); return; }
+  const counts = { expired: expired.length, red: red.length, yellow: yellow.length };
+
+  if (expired.length === 0 && red.length === 0 && yellow.length === 0) {
+    return { success: true, sent: false, counts: counts, message: '✅ ไม่มียาหมดอายุ/ใกล้หมดอายุ จึงไม่ได้ส่งแจ้งเตือน' };
+  }
+
   red.sort((a, b) => a.diffDays - b.diffDays);
   yellow.sort((a, b) => a.diffDays - b.diffDays);
   const flexMessages = buildFlexMessages_(expired, red, yellow, getAdminSettings());
-  sendLineFlexMessages_(flexMessages);
+  const res = pushLineMessages_(flexMessages);
+  if (!res.success) {
+    return { success: false, sent: false, counts: counts, message: 'ส่งแจ้งเตือนไม่สำเร็จ: ' + res.error };
+  }
+  return {
+    success: true,
+    sent: true,
+    counts: counts,
+    message: 'ส่งสรุปสำเร็จ — หมดอายุ ' + counts.expired + ', ใกล้หมด ' + counts.red + ', เฝ้าระวัง ' + counts.yellow + ' รายการ'
+  };
+}
+
+/**
+ * ส่งข้อความทดสอบไปยัง LINE เพื่อตรวจว่าตั้งค่า Token/Target ID ถูกต้อง
+ * คืน { success, message }
+ */
+function sendTestLineMessage() {
+  const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  const messages = [{
+    type: 'text',
+    text: '✅ ทดสอบการแจ้งเตือนระบบยา\nการเชื่อมต่อ LINE ทำงานปกติ\n🕐 ' + now
+  }];
+  const res = pushLineMessages_(messages);
+  return res.success
+    ? { success: true, message: 'ส่งข้อความทดสอบไปยัง LINE สำเร็จแล้ว' }
+    : { success: false, message: 'ส่งไม่สำเร็จ: ' + res.error };
 }
 
 function buildFlexMessages_(expired, red, yellow, settings) {
@@ -130,28 +169,80 @@ function buildCompactRow_(item, status, diffDays, months) { let icon, statusText
 function buildContinuationBubble_(rows, pageNum, totalPages) { return { type: 'bubble', header: { type: 'box', layout: 'vertical', backgroundColor: '#d64545', paddingAll: 'md', contents: [{ type: 'text', text: '💊 รายการต่อ (' + pageNum + '/' + totalPages + ')', weight: 'bold', size: 'sm', color: '#ffffff' }] }, body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: rows.length > 0 ? rows : [{ type: 'text', text: '-', size: 'sm', color: '#999999' }] } }; }
 function buildSummaryBubble_(expired, red, yellow, dateStr, medicineBoxes, totalPages, settings) { const countRow = { type: 'box', layout: 'horizontal', spacing: 'md', margin: 'md', contents: [{ type: 'text', text: '❌ ' + expired.length, size: 'sm', weight: 'bold', color: '#7a1f1f', flex: 0 }, { type: 'text', text: '🔴 ' + red.length, size: 'sm', weight: 'bold', color: '#d64545', flex: 0 }, { type: 'text', text: '🟡 ' + yellow.length, size: 'sm', weight: 'bold', color: '#a97511', flex: 0 }] }; return { type: 'bubble', header: { type: 'box', layout: 'vertical', spacing: 'sm', backgroundColor: '#d64545', paddingAll: 'md', contents: [{ type: 'text', text: '💊 แจ้งเตือนระบบยา ⚠️', weight: 'bold', size: 'lg', color: '#ffffff' }, { type: 'text', text: 'สรุปสถานะยาใกล้หมดอายุ', size: 'xs', color: '#ffffff', margin: 'sm' }] }, body: { type: 'box', layout: 'vertical', spacing: 'md', contents: [{ type: 'box', layout: 'horizontal', spacing: 'md', contents: [{ type: 'text', text: '📅 ตรวจสอบวันที่:', size: 'sm', color: '#666666', flex: 0 }, { type: 'text', text: dateStr, size: 'sm', weight: 'bold', color: '#333333', flex: 5 }] }, countRow, { type: 'separator', margin: 'md' }, { type: 'text', text: '📋 รายการตรวจสอบ', size: 'sm', weight: 'bold', color: '#333333', margin: 'md' }, { type: 'box', layout: 'vertical', spacing: 'sm', margin: 'md', contents: medicineBoxes.length > 0 ? medicineBoxes : [{ type: 'text', text: '✅ ไม่มียาที่ใกล้หมดอายุ', size: 'sm', color: '#2f9e6f', align: 'center' }] }, totalPages > 1 ? { type: 'text', text: '📄 หน้า 1/' + totalPages + ' — เลื่อนดูรายการที่เหลือในหน้าถัดไปของข้อความนี้ได้เลย', size: 'xs', color: '#999999', margin: 'md', align: 'center' } : null].filter(Boolean) }, footer: { type: 'box', layout: 'vertical', spacing: 'sm', backgroundColor: '#f5fbfa', paddingAll: 'sm', contents: [{ type: 'text', text: '📱 ตรวจสอบระบบบริหารยาเพื่อการจัดการที่ดีขึ้น', size: 'xs', color: '#999999', align: 'center' }] } }; }
 
+// เดิม: ส่ง flex message (คงไว้เพื่อ backward-compat) — ปัจจุบัน delegate ไป pushLineMessages_
 function sendLineFlexMessages_(flexMessages) {
+  const res = pushLineMessages_(flexMessages);
+  if (!res.success) Logger.log('❌ ส่ง LINE ไม่สำเร็จ: ' + res.error);
+  return res.success;
+}
+
+/**
+ * ส่งข้อความ (text/flex) ไปยัง LINE Messaging API แบบแบ่งชุดละ 5 ข้อความ
+ * คืน { success, error } — หยุดและรายงานทันทีเมื่อเจอ error แรก
+ */
+function pushLineMessages_(messages) {
   const props = PropertiesService.getScriptProperties();
   const token = props.getProperty('LINE_CHANNEL_ACCESS_TOKEN');
   const targetId = props.getProperty('LINE_TARGET_ID');
-  if (!token || !targetId) { Logger.log('❌ ข้อผิดพลาด: ยังไม่ได้ตั้งค่า LINE credentials'); return false; }
+  if (!token || !targetId) return { success: false, error: 'ยังไม่ได้ตั้งค่า LINE Token หรือ Target ID' };
+
   const MESSAGES_PER_PUSH = 5;
   const url = 'https://api.line.me/v2/bot/message/push';
-  for (let i = 0; i < flexMessages.length; i += MESSAGES_PER_PUSH) {
-    const batch = flexMessages.slice(i, i + MESSAGES_PER_PUSH);
-    const payload = { to: targetId, messages: batch };
-    const options = { method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + token }, payload: JSON.stringify(payload), muteHttpExceptions: true };
+  for (let i = 0; i < messages.length; i += MESSAGES_PER_PUSH) {
+    const batch = messages.slice(i, i + MESSAGES_PER_PUSH);
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: JSON.stringify({ to: targetId, messages: batch }),
+      muteHttpExceptions: true
+    };
     try {
       const res = UrlFetchApp.fetch(url, options);
-      if (res.getResponseCode() === 200) Logger.log('✅ ส่ง Flex Message LINE สำเร็จ (' + batch.length + ' ข้อความ)');
-      else Logger.log('⚠️ LINE API response: ' + res.getResponseCode() + ' ' + res.getContentText());
-    } catch (err) { Logger.log('❌ ข้อผิดพลาด: ' + err.toString()); }
+      const code = res.getResponseCode();
+      if (code === 200) {
+        Logger.log('✅ ส่ง LINE สำเร็จ (' + batch.length + ' ข้อความ)');
+      } else {
+        return { success: false, error: 'LINE API ' + code + ': ' + res.getContentText() };
+      }
+    } catch (err) {
+      return { success: false, error: err.toString() };
+    }
   }
-  return true;
+  return { success: true };
 }
 
+const DAILY_TRIGGER_HANDLER = 'checkExpiryAndNotify';
+const DAILY_TRIGGER_HOUR = 8;
+
 function createDailyTrigger() {
-  ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'checkExpiryAndNotify') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('checkExpiryAndNotify').timeBased().everyDays(1).atHour(8).create();
+  removeDailyTriggers_();
+  ScriptApp.newTrigger(DAILY_TRIGGER_HANDLER).timeBased().everyDays(1).atHour(DAILY_TRIGGER_HOUR).create();
   Logger.log('✅ ตั้งเวลาแจ้งเตือนอัตโนมัติทุกวัน 08:00 น. เรียบร้อยแล้ว');
+}
+
+function removeDailyTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === DAILY_TRIGGER_HANDLER) ScriptApp.deleteTrigger(t);
+  });
+}
+
+// สถานะแจ้งเตือนอัตโนมัติ (มี trigger รายวันอยู่หรือไม่) — เรียกจากหน้าเว็บ
+function getTriggerStatus() {
+  const enabled = ScriptApp.getProjectTriggers()
+    .some(t => t.getHandlerFunction() === DAILY_TRIGGER_HANDLER);
+  return { enabled: enabled, hour: DAILY_TRIGGER_HOUR };
+}
+
+// เปิดแจ้งเตือนอัตโนมัติทุกวัน 08:00 — คืน { success, enabled, message }
+function enableDailyTrigger() {
+  createDailyTrigger();
+  return { success: true, enabled: true, message: 'เปิดแจ้งเตือนอัตโนมัติทุกวัน 08:00 น. แล้ว' };
+}
+
+// ปิดแจ้งเตือนอัตโนมัติ — คืน { success, enabled, message }
+function disableDailyTrigger() {
+  removeDailyTriggers_();
+  Logger.log('🛑 ปิดแจ้งเตือนอัตโนมัติแล้ว');
+  return { success: true, enabled: false, message: 'ปิดแจ้งเตือนอัตโนมัติแล้ว' };
 }

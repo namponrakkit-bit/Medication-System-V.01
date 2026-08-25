@@ -447,6 +447,7 @@
         warn.style.display = 'none';
       }
       adminFormError.classList.remove('show');
+      refreshTriggerStatus();
       adminModalOverlay.classList.add('open');
     }
     document.getElementById('btnAdminClose').addEventListener('click', () => adminModalOverlay.classList.remove('open'));
@@ -501,6 +502,72 @@
         adminFormError.textContent = err.message || err.toString();
         adminFormError.classList.add('show');
       }).saveAdminSettings(data);
+    });
+
+    /* ---------------------- LINE: ส่งทดสอบ / ส่งสรุป / แจ้งเตือนอัตโนมัติ ---------------------- */
+    let triggerEnabled = false;
+    function renderTriggerStatus() {
+      const label = document.getElementById('triggerStatusLabel');
+      const btn = document.getElementById('btnToggleDailyTrigger');
+      label.textContent = triggerEnabled ? 'เปิดอยู่' : 'ปิดอยู่';
+      label.style.color = triggerEnabled ? 'var(--mac-green)' : 'var(--mac-muted)';
+      btn.textContent = triggerEnabled ? 'ปิด' : 'เปิด';
+      btn.disabled = false;
+    }
+    function refreshTriggerStatus() {
+      const label = document.getElementById('triggerStatusLabel');
+      const btn = document.getElementById('btnToggleDailyTrigger');
+      label.textContent = 'กำลังตรวจสอบ...';
+      label.style.color = 'var(--mac-muted)';
+      btn.disabled = true;
+      google.script.run.withSuccessHandler(st => {
+        triggerEnabled = !!(st && st.enabled);
+        renderTriggerStatus();
+      }).withFailureHandler(() => {
+        label.textContent = 'ตรวจสอบไม่ได้';
+        btn.disabled = false;
+      }).getTriggerStatus();
+    }
+    document.getElementById('btnLineTest').addEventListener('click', () => {
+      const btn = document.getElementById('btnLineTest');
+      setButtonLoading(btn, 'กำลังส่ง...');
+      google.script.run.withSuccessHandler(res => {
+        resetButtonLoading(btn);
+        showToast(res.message, res.success ? 'success' : 'error');
+      }).withFailureHandler(err => {
+        resetButtonLoading(btn);
+        showToast('ส่งไม่สำเร็จ: ' + (err.message || err), 'error');
+      }).sendTestLineMessage();
+    });
+    document.getElementById('btnLineSendNow').addEventListener('click', () => {
+      const btn = document.getElementById('btnLineSendNow');
+      setButtonLoading(btn, 'กำลังส่ง...');
+      google.script.run.withSuccessHandler(res => {
+        resetButtonLoading(btn);
+        showToast(res.message, res.success ? 'success' : 'error');
+      }).withFailureHandler(err => {
+        resetButtonLoading(btn);
+        showToast('ส่งไม่สำเร็จ: ' + (err.message || err), 'error');
+      }).sendExpirySummaryNow();
+    });
+    document.getElementById('btnToggleDailyTrigger').addEventListener('click', () => {
+      const btn = document.getElementById('btnToggleDailyTrigger');
+      const turningOn = !triggerEnabled;
+      setButtonLoading(btn, 'กำลังบันทึก...');
+      const onDone = res => {
+        resetButtonLoading(btn);
+        triggerEnabled = !!(res && res.enabled);
+        renderTriggerStatus();
+        showToast(res.message, 'success');
+      };
+      const onFail = err => {
+        resetButtonLoading(btn);
+        renderTriggerStatus();
+        showToast('ทำรายการไม่สำเร็จ: ' + (err.message || err), 'error');
+      };
+      const runner = google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail);
+      if (turningOn) runner.enableDailyTrigger();
+      else runner.disableDailyTrigger();
     });
 
     /* ---------------------- Modal: เข้าสู่โหมดแอดมิน (ใส่รหัสผ่าน) ---------------------- */

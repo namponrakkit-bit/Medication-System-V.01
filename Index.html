@@ -217,6 +217,20 @@
           <div class="form-field full"><label>LINE Channel Access Token <span id="tokenStatus" style="font-weight:400; color:var(--mac-muted);"></span></label><input id="setLineToken" type="password" placeholder="วาง Token ที่นี่..."></div>
           <div class="form-field full"><label>LINE Target ID (User ID หรือ Group ID)</label><input id="setLineTarget" type="text" placeholder="เช่น U1234... หรือ C1234..."></div>
         </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+          <button type="button" class="btn btn-outline btn-sm" id="btnLineTest">📨 ส่งข้อความทดสอบ</button>
+          <button type="button" class="btn btn-outline btn-sm" id="btnLineSendNow">💊 ส่งสรุปยาใกล้หมดอายุตอนนี้</button>
+        </div>
+        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:6px;">* บันทึกการตั้งค่าก่อน แล้วจึงกดทดสอบ — ระบบจะส่งข้อความไปยัง LINE Target ที่ตั้งไว้</p>
+
+        <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">แจ้งเตือนอัตโนมัติ</h3>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span style="font-size:0.85rem; color:var(--mac-text);">สรุปยาใกล้หมดอายุทุกวัน 08:00 น.:</span>
+          <span id="triggerStatusLabel" style="font-size:0.85rem; font-weight:600; color:var(--mac-muted);">กำลังตรวจสอบ...</span>
+          <button type="button" class="btn btn-outline btn-sm" id="btnToggleDailyTrigger" disabled>—</button>
+        </div>
+        <p style="font-size:0.78rem; color:var(--mac-muted); margin-top:6px;">* ต้องตั้งค่า LINE Token/Target ID ให้เรียบร้อยก่อน การแจ้งเตือนอัตโนมัติจึงจะส่งได้</p>
+
         <h3 style="font-size:0.9rem; color:var(--mac-text); margin:20px 0 8px;">เกณฑ์การแจ้งเตือนวันหมดอายุ</h3>
         <div class="form-grid">
           <div class="form-field"><label>แดง (ด่วนมาก) หากเหลือไม่เกิน (เดือน)</label><input id="setRedMonths" type="number" min="0" max="12" placeholder="4"></div>
